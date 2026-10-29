@@ -1,0 +1,12 @@
+[
+  {"path": "", "read": "view", "write": "admin"},
+  {"path": "audit", "read": "admin", "write": "admin"},
+  {"path": "members", "read": "admin", "write": "admin"},
+  {"path": "changes", "read": "admin", "write": "admin"},
+  {"path": "agencyData", "read": "view", "write": "admin"},
+  {"path": "agencyData/{self}", "write": "interact"},
+  {"path": "analytics", "read": "admin", "write": "admin"},
+  {"path": "analytics/{self}", "read": "interact", "write": "interact"},
+  {"path": "contributions", "read": "admin", "write": "admin"},
+  {"path": "contributions/{self}", "read": "interact", "write": "interact"}
+]

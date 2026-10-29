@@ -1,0 +1,38 @@
+{
+ "id": "/",
+ "name": "Open Tracker (Flood Tracker)",
+ "short_name": "Open Tracker",
+ "description": "Open-source flood and heat tracking for every country: projected reach, 3D flood depth and volume, warnings and past floods.",
+ "start_url": "/?source=homescreen",
+ "scope": "/",
+ "display": "standalone",
+ "orientation": "any",
+ "background_color": "#eef3f3",
+ "theme_color": "#0a6873",
+ "lang": "en",
+ "categories": [
+  "weather",
+  "utilities",
+  "news"
+ ],
+ "icons": [
+  {
+   "src": "/icons/icon-192.png",
+   "sizes": "192x192",
+   "type": "image/png",
+   "purpose": "any"
+  },
+  {
+   "src": "/icons/icon-512.png",
+   "sizes": "512x512",
+   "type": "image/png",
+   "purpose": "any"
+  },
+  {
+   "src": "/icons/maskable-512.png",
+   "sizes": "512x512",
+   "type": "image/png",
+   "purpose": "maskable"
+  }
+ ]
+}

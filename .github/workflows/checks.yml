@@ -1,0 +1,19 @@
+# Every push: build, lint and run the server tests (file and Redis storage).
+name: Checks
+on: [push, pull_request]
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    services:
+      redis: {image: "redis:7-alpine", ports: ["6379:6379"]}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: "20"}
+      - run: cd webapp && npm ci
+      - run: sh tools/check.sh
+        env: {TEST_REDIS_URL: "redis://127.0.0.1:6379/15"}
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.12"}
+      - run: pip install -r modelling/requirements.txt pytest
+      - run: python -m pytest modelling/tests satellite/tests world/tests -q

@@ -1,0 +1,36 @@
+# Maps a flood from Sentinel-2 images for any place on Earth and returns an Open Tracker replay file.
+# Import it in Open Tracker Admin → Flood replays, or upload it in the web app's push console.
+name: Satellite flood outlines
+on:
+  workflow_dispatch:
+    inputs:
+      id: {description: "short name, e.g. lagos-2026-07", required: true}
+      title: {description: "title people see", required: true}
+      country: {description: "two-letter country code", required: true}
+      bbox: {description: "west,south,east,north (at most about 1 degree square)", required: true}
+      after: {description: "flood dates, e.g. 2026-07-01/2026-07-20", required: true}
+      before: {description: "dry dates for normal water (optional)", required: false}
+jobs:
+  outline:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      ID: ${{ inputs.id }}
+      TITLE: ${{ inputs.title }}
+      COUNTRY: ${{ inputs.country }}
+      BBOX: ${{ inputs.bbox }}
+      AFTER: ${{ inputs.after }}
+      BEFORE: ${{ inputs.before }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.12"}
+      - run: pip install -r satellite/requirements.txt pytest
+      - run: python -m pytest satellite/tests -q
+      - name: Map the flood
+        run: |
+          cd satellite
+          python sentinel2_flood.py --id "$ID" --title "$TITLE" --country "$COUNTRY" --bbox "$BBOX" --after "$AFTER" \
+            ${BEFORE:+--before "$BEFORE"} --out "replays/$ID.json"
+      - uses: actions/upload-artifact@v4
+        with: {name: satellite-replay, path: satellite/replays/*.json}

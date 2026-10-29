@@ -1,0 +1,8 @@
+# Replace with your domain. Caddy gets and renews the HTTPS certificate automatically.
+opentracker.example.org {
+	encode zstd gzip
+	reverse_proxy web:8080 {
+		lb_policy least_conn
+		health_uri /readyz
+	}
+}

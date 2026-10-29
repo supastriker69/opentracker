@@ -1,0 +1,58 @@
+# Flood model areas. bbox = [west, south, east, north] in degrees. res = model cell size in metres.
+# Rain scenarios: total millimetres over a number of hours, shaped like a real storm (peak in the middle third).
+# tide_m: sea level held at the coast during the run (metres above mean sea level); omit for inland areas.
+# qinf_mm_h: rain soaking into the ground (mm per hour); towns soak up little.
+cities:
+  accra:
+    name: Accra (Odaw basin, Korle Lagoon and central Accra)
+    country: GH
+    areas: [GH-AA]
+    bbox: [-0.30, 5.53, -0.15, 5.70]
+    res: 50
+    tide_m: 0.6
+    qinf_mm_h: 2
+    scenarios:
+      jun29-2026:
+        title: "29 June 2026 storm: 169.2 mm in a day"
+        rain_mm: 169.2
+        hours: 12
+        source: "GMet daily total reported to Parliament (Graphic Online, July 2026); spread over 12 hours is an assumption"
+        start: "2026-06-29T06:00:00"
+      heavy-6h:
+        title: "Heavy downpour: 100 mm in 6 hours"
+        rain_mm: 100
+        hours: 6
+  cape-coast:
+    name: Cape Coast (Fosu Lagoon, Kakum and the town centre)
+    country: GH
+    areas: [GH-CP]
+    bbox: [-1.32, 5.08, -1.20, 5.16]
+    res: 50
+    tide_m: 0.6
+    qinf_mm_h: 3
+    scenarios:
+      heavy-6h:
+        title: "Heavy downpour: 100 mm in 6 hours"
+        rain_mm: 100
+        hours: 6
+      extreme-12h:
+        title: "Extreme storm: 150 mm in 12 hours"
+        rain_mm: 150
+        hours: 12
+  lagos:
+    name: Lagos (Mainland, Yaba, Surulere, Ikeja and Lagos Island)
+    country: NG
+    areas: [NG-LA]
+    bbox: [3.30, 6.40, 3.50, 6.62]
+    res: 75
+    tide_m: 0.7
+    qinf_mm_h: 2
+    scenarios:
+      heavy-6h:
+        title: "Heavy downpour: 100 mm in 6 hours"
+        rain_mm: 100
+        hours: 6
+      extreme-12h:
+        title: "Extreme storm: 180 mm in 12 hours"
+        rain_mm: 180
+        hours: 12

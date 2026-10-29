@@ -1,0 +1,7 @@
+node_modules/
+.data/
+dist/
+world/raw
+__pycache__/
+.pytest_cache/
+*.tmp

@@ -1,0 +1,2 @@
+{"root":true,"env":{"node":true,"es2022":true},"parserOptions":{"ecmaVersion":2022,"sourceType":"script"},
+ "rules":{"no-undef":"error","no-unused-vars":["error",{"args":"none","caughtErrors":"none"}],"no-redeclare":"error","no-dupe-keys":"error","no-unreachable":"error","eqeqeq":["error","smart"],"no-shadow":"off","prefer-const":"warn","no-var":"error"}}

@@ -1,0 +1,22 @@
+# Rebuilds the world tables (countries, emergency numbers, languages, places, rivers) from their open sources
+# every month and on demand. Download the "world-tables" artifact and commit world/out/ if it changed.
+name: World data
+on:
+  schedule: [{cron: "17 3 2 * *"}]
+  workflow_dispatch: {}
+jobs:
+  world:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.12"}
+      - uses: actions/setup-node@v4
+        with: {node-version: "20"}
+      - run: pip install pytest
+      - run: sh world/fetch_sources.sh
+      - run: python world/build_world.py
+      - run: python -m pytest world/tests -q
+      - uses: actions/upload-artifact@v4
+        with: {name: world-tables, path: world/out/*.json}

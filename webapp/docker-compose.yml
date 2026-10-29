@@ -1,0 +1,39 @@
+# A complete small deployment on one machine: HTTPS proxy, two web servers, one notification sender, Redis.
+# For large deployments see docs/SCALING.md (managed Redis, many regions, a CDN in front).
+services:
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes", "--maxmemory-policy", "noeviction"]
+    volumes: ["redis-data:/data"]
+    restart: unless-stopped
+  web:
+    build: .
+    environment:
+      REDIS_URL: redis://redis:6379/0
+      ROLE: web
+      WORKERS: auto
+      TRUST_PROXY: "1"
+      VAPID_SUBJECT: ${VAPID_SUBJECT:-mailto:alerts@example.org}
+    deploy: {replicas: 2}
+    depends_on: [redis]
+    restart: unless-stopped
+  push:
+    build: .
+    environment:
+      REDIS_URL: redis://redis:6379/0
+      ROLE: push
+      PUSH_CONCURRENCY: "100"
+      GOOGLE_WEATHER_API_KEY: ${GOOGLE_WEATHER_API_KEY:-}
+      VAPID_SUBJECT: ${VAPID_SUBJECT:-mailto:alerts@example.org}
+    healthcheck: {disable: true}   # senders don't serve HTTP
+    depends_on: [redis]
+    restart: unless-stopped
+  caddy:
+    image: caddy:2-alpine
+    ports: ["80:80", "443:443"]
+    volumes: ["./Caddyfile:/etc/caddy/Caddyfile:ro", "caddy-data:/data"]
+    depends_on: [web]
+    restart: unless-stopped
+volumes:
+  redis-data: {}
+  caddy-data: {}

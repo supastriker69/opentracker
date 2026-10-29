@@ -1,0 +1,2 @@
+{"root":true,"env":{"serviceworker":true,"browser":true,"es2022":true},"parserOptions":{"ecmaVersion":2022,"sourceType":"script"},
+ "rules":{"no-undef":"error","no-unused-vars":["error",{"args":"none","caughtErrors":"none"}],"eqeqeq":["error","smart"],"prefer-const":"warn","no-var":"error"}}

@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Open Tracker Push Console</title>
+<meta name="robots" content="noindex">
+<link rel="icon" href="/icons/favicon-32.png">
+<link rel="stylesheet" href="/app.css">
+<script src="/console.js" defer></script>
+</head>
+<body>
+<header class="top"><div class="top-in"><a class="brand" href="/"><img src="/icons/icon-192.png" width="30" height="30" alt=""><b>Open Tracker</b></a><span class="muted">Push console</span>
+</div></header>
+<main class="wrap wide">
+  <section class="card" id="login">
+    <h1>Sign in with your agency key</h1>
+    <p>Open Tracker gives each recognised agency a private key. Notices you send go to the phones of people who follow the places they cover.</p>
+    <form id="login-form" class="formgrid">
+      <label class="field wide"><span>Agency key</span><input id="key" type="password" autocomplete="off" required></label>
+      <div class="toolbar"><button class="sbtn primary" type="submit">Sign in</button></div>
+      <p id="login-msg" role="alert"></p>
+    </form>
+  </section>
+
+  <div id="work" hidden>
+    <div class="toolbar"><b id="who"></b><button class="sbtn" id="signout" type="button">Sign out</button></div>
+    <section class="card">
+      <h1>Send a public notice</h1>
+      <p class="small muted" id="approval-note"></p>
+      <form id="notice-form" class="formgrid">
+        <label class="field"><span>Type</span><select id="n-level"><option value="warning">Flood warning</option><option value="watch">Flood watch</option><option value="info">Information</option><option value="clear">All clear</option></select></label>
+        <label class="field"><span>Country</span><select id="n-c"><option value="GH">Ghana</option><option value="NG">Nigeria</option><option value="ALL">Ghana and Nigeria</option></select></label>
+        <label class="field wide"><span>Title (up to 80 characters)</span><input id="n-title" maxlength="80" required></label>
+        <label class="field wide"><span>Message in plain words (up to 500 characters)</span><textarea id="n-msg" maxlength="500" required></textarea></label>
+        <fieldset class="field wide"><legend>Regions or states (none ticked = whole country)</legend><div class="checks" id="n-areas"></div></fieldset>
+        <label class="field"><span>Or near a spot: latitude</span><input id="n-lat" type="number" step="any" min="-90" max="90"></label>
+        <label class="field"><span>Longitude</span><input id="n-lon" type="number" step="any" min="-180" max="180"></label>
+        <label class="field"><span>Radius (km)</span><input id="n-km" type="number" min="1" max="300" value="10"></label>
+        <label class="field"><span>Show until (optional)</span><input id="n-exp" type="datetime-local"></label>
+        <div class="toolbar wide"><button class="sbtn primary" id="send-btn" type="submit">Send notice</button></div>
+        <p id="send-msg" role="status" class="wide"></p>
+      </form>
+    </section>
+
+    <section class="card" id="pending-card" hidden>
+      <h2>Waiting for approval</h2>
+      <div class="toolbar"><input id="decide-note" maxlength="300" placeholder="Note to the agency when rejecting (optional)" aria-label="Note to the agency"></div>
+      <p id="decide-msg" role="status"></p>
+      <div class="tablewrap"><table><thead><tr><th>Sent</th><th>Agency</th><th>Notice</th><th>Status</th><th></th></tr></thead><tbody id="pending"></tbody></table></div>
+    </section>
+
+    <section class="card">
+      <h2>Notices</h2>
+      <div class="tablewrap"><table><thead><tr><th>Sent</th><th>Agency</th><th>Notice</th><th>Status</th><th></th></tr></thead><tbody id="sent"></tbody></table></div>
+    </section>
+
+    <section class="card" id="contrib-card" hidden>
+      <h2>Contributions from the public</h2>
+      <p class="small muted">Flood reports, corrections, suggestions and data sources sent from the website. Check the source before adding anything to Open Tracker Admin.</p>
+      <div class="toolbar"><label class="field"><span>Show</span><select id="c-filter"><option value="new">New</option><option value="accepted">Accepted</option><option value="rejected">Rejected</option><option value="">All</option></select></label>
+        <input id="c-note" maxlength="300" placeholder="Note (optional)" aria-label="Note"></div>
+      <p id="c-msg" role="status"></p>
+      <div class="tablewrap"><table><thead><tr><th>Sent</th><th>Type</th><th>What they said</th><th>Status</th><th></th></tr></thead><tbody id="contribs"></tbody></table></div>
+    </section>
+
+    <section class="card" id="replay-card" hidden>
+      <h2>Flood replays</h2>
+      <p class="small muted">Upload replay files from the modelling tools (hour-by-hour flood model runs) or the satellite tools (flood outlines by date). Uploading a replay with the same name replaces it.</p>
+      <label class="sbtn primary" for="replay-file">Upload a replay file</label><input id="replay-file" type="file" accept="application/json,.json" class="sr">
+      <p id="replay-msg" role="status"></p>
+      <div class="tablewrap"><table><thead><tr><th>Replay</th><th>Kind</th><th>Steps</th><th>Starts</th><th></th></tr></thead><tbody id="replays"></tbody></table></div>
+    </section>
+
+    <section class="card" id="feeds-card" hidden>
+      <h2>Data feeds</h2>
+      <p class="small muted">Outside sources Open Tracker reads on its own, around the clock. A failing source keeps its last good data and is tried again automatically.</p>
+      <label class="switch"><input type="checkbox" id="auto-heat"> <span><b>Automatic heat alerts</b><br><span class="small muted">When the heat model rates a place dangerous for today or tomorrow, people within 40 km get one alert. While approval is on, each alert waits for you under "Waiting for approval".</span></span></label>
+      <div class="toolbar"><button class="sbtn" id="snapshot-btn" type="button">Download live data</button><span class="small muted">One file with every country's flood and heat summary, to import in the claude.ai page (Admin → Live data).</span></div>
+      <p id="feeds-msg" role="status"></p>
+      <div class="tablewrap"><table><thead><tr><th>Source</th><th>Status</th><th>Last success</th><th>Details</th><th></th></tr></thead><tbody id="feeds"></tbody></table></div>
+      <h3>Official warning feeds (CAP)</h3>
+      <p class="small">Add each country's weather service and disaster agency feeds from the <a href="https://alertingauthority.wmo.int/" target="_blank" rel="noopener noreferrer">WMO Register of Alerting Authorities</a>. Only https addresses on the public internet are accepted.</p>
+      <form id="cap-form" class="formgrid">
+        <label class="field"><span>Country code</span><input id="cap-c" maxlength="2" minlength="2" required placeholder="NG" autocomplete="off"></label>
+        <label class="field"><span>Agency</span><input id="cap-agency" maxlength="120" required placeholder="Nigerian Meteorological Agency"></label>
+        <label class="field wide"><span>Feed address (Atom or RSS)</span><input id="cap-url" type="url" required placeholder="https://"></label>
+        <div class="toolbar wide"><button class="sbtn primary" type="submit">Add feed</button></div>
+      </form>
+      <div class="tablewrap"><table><thead><tr><th>Country</th><th>Agency</th><th>Address</th><th></th></tr></thead><tbody id="cap-feeds"></tbody></table></div>
+    </section>
+
+    <section class="card" id="admin" hidden>
+      <h2>Administration</h2>
+      <label class="switch"><input type="checkbox" id="ap-on"> <span><b>Agency notices need approval</b><br><span class="small muted">Trusted agencies can be exempted on the server: <code>node server.js keys:trust &lt;key-id&gt;</code></span></span></label>
+      <h3>Publish data to the web app</h3>
+      <p class="small">In Open Tracker Admin, open Overview and choose <b>Download backup</b>. Upload that file here; people and account ids are left out automatically.</p>
+      <label class="sbtn" for="data-file">Upload Open Tracker backup</label><input id="data-file" type="file" accept="application/json,.json" class="sr">
+      <h3>Subscribers</h3>
+      <div class="toolbar"><button class="sbtn" id="stats-btn" type="button">Show subscriber numbers</button><span id="stats" class="small"></span></div>
+      <p id="admin-msg" role="status"></p>
+    </section>
+  </div>
+</main>
+</body>
+</html>

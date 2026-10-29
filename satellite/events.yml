@@ -1,0 +1,33 @@
+# Past floods to replay from satellite flood maps. For each: where to get the official outlines,
+# and the area and dates for the Sentinel-1 script (sentinel1_flood.js) when no official outlines exist.
+events:
+  accra-2026-06:
+    title: "Accra floods, June 2026"
+    country: GH
+    areas: [GH-AA]
+    bbox: [-0.36, 5.50, -0.05, 5.75]
+    official:
+      - name: "Copernicus Global Flood Monitoring (GFM), Sentinel-1 observed flood extent"
+        url: "https://global-flood.emergency.copernicus.eu/news/250-floods-and-landslides-in-ghana-june-2026/"
+        how: "GFM portal → area of interest → Observed flood extent → download GeoJSON for each Sentinel-1 date after 29 June 2026"
+    sentinel1: {before: ["2026-06-01", "2026-06-25"], after_dates: ["2026-06-30", "2026-07-06", "2026-07-12"]}
+  borno-2024-09:
+    title: "Borno floods after the Alau Dam collapse, September 2024"
+    country: NG
+    areas: [NG-BO]
+    bbox: [12.95, 11.70, 13.35, 12.00]
+    official:
+      - name: "Copernicus Emergency Management Service, activation EMSR753"
+        url: "https://mapping.emergency.copernicus.eu/news/flood-in-borno-nigeria/"
+        how: "Rapid Mapping → EMSR753 → delineation products → download the vector package; use the 'observed event' flooded-area layer"
+    sentinel1: {before: ["2024-08-15", "2024-09-05"], after_dates: ["2024-09-11", "2024-09-17", "2024-09-23", "2024-09-29"]}
+  nigeria-2022-10:
+    title: "Nigeria floods, October 2022 (Niger and Benue)"
+    country: NG
+    areas: [NG-KO, NG-AN, NG-DE, NG-BY, NG-BE, NG-NI]
+    bbox: [5.5, 4.6, 9.8, 9.2]
+    official:
+      - name: "UNOSAT FL20221019NGA, satellite-detected water extents (VIIRS), 8–12, 13–17 and 19–23 October 2022"
+        url: "https://unosat.org/static/unosat_filesystem/3424/UNOSAT_Population_Exposure_FL20221019NGA_19Oct_23Oct2022_Nigeria.pdf"
+        how: "UNOSAT products page → FL20221019NGA → download the water-extent shapefiles for each period"
+    sentinel1: {before: ["2022-08-01", "2022-08-25"], after_dates: ["2022-09-25", "2022-10-07", "2022-10-19", "2022-10-31"]}

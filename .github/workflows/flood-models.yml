@@ -1,0 +1,29 @@
+# Runs the Open Tracker flood models (SFINCS) for Accra, Cape Coast and Lagos on GitHub's machines,
+# which can download the open ground-height and land-cover data. The replay files appear as a downloadable
+# artifact; import them in Open Tracker Admin → Flood replays, or upload them in the web app's push console.
+name: Flood models
+on:
+  workflow_dispatch:
+    inputs:
+      city:
+        description: "accra, cape-coast, lagos or all"
+        default: all
+        required: true
+jobs:
+  model:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.12"}
+      - name: Install HydroMT-SFINCS
+        run: pip install -r modelling/requirements.txt
+      - name: Get SFINCS (official Deltares image)
+        run: docker pull deltares/sfincs-cpu:latest
+      - name: Check the pipeline on the test terrain
+        run: cd modelling && python -m pytest tests -q
+      - name: Build, run and turn into replays
+        run: cd modelling && python -m opentracker_model ${{ inputs.city }}
+      - uses: actions/upload-artifact@v4
+        with: {name: flood-replays, path: modelling/replays/*.json}

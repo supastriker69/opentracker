@@ -14,7 +14,11 @@ ROOT = pathlib.Path(__file__).resolve().parents[2]
 HERE = pathlib.Path(__file__).resolve().parent
 SHOTS = pathlib.Path(os.environ.get("SHOTS", HERE / "out")); SHOTS.mkdir(parents=True, exist_ok=True)
 HTML = (ROOT / "dist" / "opentracker.html").read_text()
-SKEL = '<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"></head><body>' + HTML + '</body></html>'
+# the published page's rules: scripts only from the allowed CDNs (and inline), workers from blob:, no other network
+CSP = ("default-src 'none'; script-src 'unsafe-inline' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net/npm/ https://unpkg.com; "
+       "worker-src blob:; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src data: blob:; connect-src 'none'")
+SKEL = ('<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover">'
+        f'<meta http-equiv="Content-Security-Policy" content="{CSP}"></head><body>' + HTML + '</body></html>')
 ML = {f: (ROOT / "assets" / "vendor" / "maplibre-gl-6.15.0" / f).read_text() for f in ["maplibre-gl.mjs", "maplibre-gl-worker.mjs"]}
 MOCK = "window.__RULES = " + (ROOT / "config" / "db-rules.json").read_text() + ";\n" + (HERE / "mock.js").read_text()
 ROLES = {
@@ -154,6 +158,11 @@ def run_scenario(b, name):
         exec(compile((HERE / name).read_text(), str(HERE / name), "exec"), scope)
     except Exception:
         failure = traceback.format_exc(limit=3)
+        try:   # what the page showed when the check failed
+            page.screenshot(path=str(SHOTS / f"failure-{name}.png"), full_page=True, timeout=10_000)
+            failure += "\npage at failure: " + page.inner_text("body")[:800].replace("\n", " | ")
+        except Exception:
+            pass
     ctx.close()
     return counted["n"], failure, errors
 

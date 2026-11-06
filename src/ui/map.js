@@ -8,12 +8,15 @@ const heatColor = lv => cssv("--heat-" + Math.max(0, Math.min(4, lv | 0)));
 const floodColor = lv => cssv(lv === "warning" ? "--flood-warning" : "--flood-watch");
 
 /* MapLibre is an ES module, loaded the first time a map is shown. MAPLIB_URL is set by the build:
-   the web app's own copy, or the CDN copy for the claude.ai page. */
+   the web app's own copy (its worker beside it), or the CDN copy for the claude.ai page (its worker inside the page). */
 const MAPLIB = {state: "idle", lib: null};   /* idle → loading → ready | failed */
 function loadMapLib() {
   if (MAPLIB.state !== "idle") return;
   MAPLIB.state = "loading";
   import(MAPLIB_URL).then(lib => {
+    /* the claude.ai page carries MapLibre's worker inside it: pages there may start workers only from blob: addresses */
+    const w = document.getElementById("maplibre-worker");
+    if (w && lib.setWorkerUrl) lib.setWorkerUrl(URL.createObjectURL(new Blob([w.textContent], {type: "text/javascript"})));
     MAPLIB.lib = lib; MAPLIB.state = "ready";
     if (MAPV.el && MAPV.el.isConnected) mapMount(MAPV.el);   /* the screen that asked for a map is still showing */
   }, () => {

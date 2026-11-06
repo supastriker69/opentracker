@@ -89,6 +89,9 @@ def geo_js():
 
 
 def build_artifact(js, geo, css):
+    # The page may start workers only from blob: addresses, so MapLibre's worker travels inside the page
+    worker = read(MAPLIB_DIR / "maplibre-gl-worker.mjs")
+    assert "</script" not in worker.lower(), "the MapLibre worker can't be embedded as is"
     html = f"""<title>Open Tracker</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <meta name="description" content="Open-source flood and heat tracking for every country: projected reach, 3D flood depth and volume, warnings and past floods.">
@@ -98,6 +101,7 @@ def build_artifact(js, geo, css):
 {css}
 </style>
 {HEADER}
+<script type="text/x-maplibre-worker" id="maplibre-worker">{worker}</script>
 <script>
 "use strict";
 const MAPLIB_URL = "{MAPLIB_CDN}";

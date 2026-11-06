@@ -2,10 +2,11 @@
    A small two-dimensional flood model run on the real ground heights around a place. Rain falls on every cell
    (minus what soaks in), rivers rise at river cells, the sea holds coastal cells at sea level, and water flows
    downhill between neighbouring cells with Manning friction: the diffusive-wave scheme of LISFLOOD-FP
-   (Bates and De Roo 2000), with each transfer capped so depths never go negative.
+   (Bates and De Roo 2000), with each transfer capped so depths never go negative. Checked against SFINCS, the
+   full model of the city replays: modelling/opentracker_model/benchmark.py.
    Pure functions: no page, no network. The projection screen drives it in short slices so the page stays smooth;
    tests check that every cubic metre of water is accounted for. */
-const FLOODSIM = (() => {
+export const FLOODSIM = (() => {
   const G = 9.81;
   const MIN_FLOW_DEPTH = 1e-4;          /* m: thinner films do not flow */
   const EDGE_SLOPE = 0.002;             /* water leaving the grid's edge flows out on a gentle slope */
@@ -41,6 +42,15 @@ const FLOODSIM = (() => {
     if (!(totalMm > 0) || !(T > 0) || t < 0 || t > T) return 0;
     const peak = 2 * totalMm / 1000 / T;
     return peak * (1 - Math.abs(t - T / 2) / (T / 2));
+  }
+
+  /* rain depth (m) falling between t0 and t1 (s): the exact area under the triangle, so the storm total is exact
+     however the time steps fall */
+  function rainDepth(totalMm, stormHours, t0, t1) {
+    const T = stormHours * 3600;
+    if (!(totalMm > 0) || !(T > 0)) return 0;
+    const cum = t => { const u = Math.min(1, Math.max(0, t / T)); return totalMm / 1000 * (u <= 0.5 ? 2 * u * u : 1 - 2 * (1 - u) * (1 - u)); };
+    return cum(t1) - cum(t0);
   }
 
   function classify(depth) {
@@ -131,7 +141,7 @@ const FLOODSIM = (() => {
 
     function stepOnce(limit) {
       const dt = Math.min(maxDt, 0.7 * cell / Math.sqrt(G * hmax), limit);
-      const rain = rainRate(rainMm, stormHours, t + dt / 2) * runoff * dt;
+      const rain = rainDepth(rainMm, stormHours, t, t + dt) * runoff;
       delta.fill(0);
       for (let y = 0; y < h; y++) {
         const row = y * w;
@@ -235,5 +245,5 @@ const FLOODSIM = (() => {
     throw new Error("The flooded area is too patchy to save; try a smaller area.");
   }
 
-  return {CLASSES, WET, seaMask, rainRate, classify, stats, create, runAll, peak, classPolygons, frameCollection};
+  return {CLASSES, WET, seaMask, rainRate, rainDepth, classify, stats, create, runAll, peak, classPolygons, frameCollection};
 })();

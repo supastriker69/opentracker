@@ -1,9 +1,13 @@
 /* ===== Repository: every write goes through here, is permission-checked, and is audit-logged =====
    Audit entries are one document each in "audit" (readable and writable by Editors only, by database rule),
    so concurrent editors never overwrite each other's log lines. */
-class AccessError extends Error {}
-const BACKUP_IDS = ["OpenTracker", "FloodTrack"];   /* backups from before the rename still restore */
-const REPO = {
+import {APPROVAL} from "./approval.js";
+import {agencies, AGENCY_ROLES, AUTH, canDelete, canWrite} from "./auth.js";
+import {BUILT, clone, COLLS, data, DB, DEFAULT_SETTINGS, settings, toast} from "./core.js";
+
+export class AccessError extends Error {}
+export const BACKUP_IDS = ["OpenTracker", "FloodTrack"];   /* backups from before the rename still restore */
+export const REPO = {
   require(ok, what) { if (!DB.api) throw new AccessError("The shared database isn't available here."); if (!ok) throw new AccessError(`Your role doesn't allow you to ${what}.`); },
 
   async audit(act, coll, id, before, after) {
@@ -120,7 +124,7 @@ const REPO = {
     toast("Database ready.");
   }
 };
-function errText(e) {
+export function errText(e) {
   if (e instanceof AccessError) return e.message;
   if (e?.code === "invalid_argument") return "Your sharing access doesn't allow this change. Ask the owner to give you Editor access in the Share menu.";
   if (e?.code === "quota_exceeded") return "The database is full. Delete old records, then try again.";

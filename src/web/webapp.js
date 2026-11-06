@@ -1,8 +1,14 @@
 /* ===== Open Tracker web app layer (self-hosted site only) =====
-   Install to home screen, phone push alerts, and "use my location". Loaded before the app; the app calls in
-   through window.WEBAPP. Nothing here runs inside claude.ai. */
-"use strict";
-window.WEBAPP = (() => {
+   Install to home screen, phone push alerts, "use my location", and data from the site's own server.
+   Plugged in by src/app-web.js as HOST.web; the claude.ai page is built without it. */
+import {BUILT, clone, COLLS, DB, esc, ICON, IX, km, placeCountry, placeHot, placeName, reindex, toast, UI} from "../core/core.js";
+import {hazardsForget} from "../features/hazards.js";
+import {checkNewNotices, installGuideHtml, myPlaces} from "../features/notify.js";
+import {worldPlace} from "../features/world.js";
+import {header, render} from "../ui/main.js";
+import {feedRow} from "../ui/views-simple.js";
+
+export const WEBAPP = (() => {
   const st = {notices: [], weather: null, replays: [], deferred: null, reg: null, sub: null, msg: "", loc: null, near: null, busy: false, map: null, hazards: new Map()};
   const LOC_KEY = "ft-loc";
   const ios = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
@@ -16,7 +22,7 @@ window.WEBAPP = (() => {
     if (!r.ok) throw new Error(j.error || "The server didn't answer. Try again.");
     return j;
   }
-  const redraw = () => { if (typeof render === "function") render(); };
+  const redraw = () => render();
 
   /* ---------- start-up ---------- */
   async function start() {

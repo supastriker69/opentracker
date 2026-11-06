@@ -1,6 +1,6 @@
 /* Open Tracker prototype data. Locations are approximate centre points of areas named in
    published flood reports (see each event's source). Built 17 Oct 2026. */
-const FT = {};
+export const FT = {};
 
 FT.builtOn = "2026-10-17";
 

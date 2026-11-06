@@ -1,17 +1,24 @@
 /* ===== Agency publishing: linked agency staff post warnings, forecasts, dam status and readings =====
    Each agency account writes only under agencyData/<its own id>/posts (enforced by database rules).
    The public sees a post only if its author is listed as a publisher of an active agency. */
-const AG = {posts: {}, subs: {}, own: null, ownPosts: [], requests: [], reqSub: null, ownSub: null};
-const POST_TYPES = [["warning", "Flood warning"], ["forecast", "Rain forecast"], ["dam", "Dam status"], ["reading", "Gauge or station reading"]];
-const READING_KINDS = [["river", "River level (m)"], ["rain", "Rainfall (mm)"], ["reservoir", "Reservoir level (m)"], ["release", "Dam release (m³/s)"]];
+import {FT} from "../data/data.js";
+import {APPROVAL} from "../core/approval.js";
+import {agencies, AUTH} from "../core/auth.js";
+import {data, DB, esc, fmtDate, ICON, IX, settings, toast, UI} from "../core/core.js";
+import {HOST} from "../core/host.js";
+import {afterData, render} from "../ui/main.js";
 
-function publisherMap() {
+export const AG = {posts: {}, subs: {}, own: null, ownPosts: [], requests: [], reqSub: null, ownSub: null};
+export const POST_TYPES = [["warning", "Flood warning"], ["forecast", "Rain forecast"], ["dam", "Dam status"], ["reading", "Gauge or station reading"]];
+export const READING_KINDS = [["river", "River level (m)"], ["rain", "Rainfall (mm)"], ["reservoir", "Reservoir level (m)"], ["release", "Dam release (m³/s)"]];
+
+export function publisherMap() {
   const map = {};
   agencies().filter(a => a.status !== "suspended").forEach(a => (a.publishers || []).forEach(uid => map[uid] = a));
   return map;
 }
 /* keep one live subscription per approved publisher */
-function syncAgencySubs() {
+export function syncAgencySubs() {
   if (!DB.api) return;
   const want = new Set(Object.keys(publisherMap()));
   Object.keys(AG.subs).forEach(uid => { if (!want.has(uid)) { AG.subs[uid](); delete AG.subs[uid]; delete AG.posts[uid]; } });
@@ -62,7 +69,7 @@ function cleanPost(p, agency) {
   }
   return null;
 }
-function approvedPosts(type) {
+export function approvedPosts(type) {
   const pm = publisherMap();
   const out = [];
   Object.entries(AG.posts).forEach(([uid, list]) => {
@@ -73,25 +80,25 @@ function approvedPosts(type) {
 }
 
 /* ---------- what the rest of the app reads ---------- */
-function officialAlerts() {
+export function officialAlerts() {
   return data("alerts").concat(approvedPosts("warning").map(p => ({
     id: "ag-" + p.uid + "-" + p.id, level: p.level || "warning", c: p.c || p.agency.c, areas: p.areas || [],
     agency: p.agency.n, msg: p.msg, issued: p.at, expires: p.expires})));
 }
-function officialForecasts() {
+export function officialForecasts() {
   return data("forecasts").concat(approvedPosts("forecast").map(p => ({zone: p.zone, mm24: p.mm24, mm72: p.mm72, src: p.agency.n, at: p.at})))
-    .concat((window.WEBAPP?.forecasts() || []).map(f => Object.assign({}, f, {model: true})));   /* weather-model forecasts rank below official ones */
+    .concat((HOST.web?.forecasts() || []).map(f => Object.assign({}, f, {model: true})));   /* weather-model forecasts rank below official ones */
 }
 /* latest official dam state: an agency post wins if it is newer than the editor's setting */
-function damState(dam) {
+export function damState(dam) {
   const post = approvedPosts("dam").find(p => p.dam === dam.id);
   if (post && (!dam.updated || String(post.at) > String(dam.updated))) return {status: post.status, notice: post.notice ? `${post.notice} (${post.agency.n})` : `Reported by ${post.agency.n}.`};
   return {status: dam.status || "season", notice: dam.lastNotice || ""};
 }
-function officialReadings() { return approvedPosts("reading"); }
+export function officialReadings() { return approvedPosts("reading"); }
 
 /* ---------- agency portal ---------- */
-function viewAgency() {
+export function viewAgency() {
   if (!DB.api || !DB.uid) return `<h1>Agency portal</h1><div class="notice">${ICON.info}<div><b>Sign in to publish</b>Agency staff publish live data here after an administrator links their account.</div></div>`;
   const a = AUTH.agency();
   if (!a) return agencyRequestView();
@@ -126,14 +133,14 @@ function viewAgency() {
       ${AG.ownPosts.map(p => `<tr><td class="num">${esc(fmtDate(p.at))}</td><td>${esc((POST_TYPES.find(x => x[0] === p.type) || [0, p.type])[1])}</td><td>${esc(postSummary(p))}</td><td>${p.retracted ? "Withdrawn" : {live: "Live", pending: "Waiting for approval", rejected: "Not approved"}[APPROVAL.postStatus(p, DB.uid, a)]}</td><td>${p.retracted ? "" : `<button class="sbtn danger" data-act="ag-retract" data-id="${esc(p.id)}">Withdraw</button>`}</td></tr>`).join("") || `<tr><td colspan="5">Nothing published yet.</td></tr>`}
       </tbody></table></div></div>`;
 }
-function postSummary(p) {
+export function postSummary(p) {
   if (p.type === "warning") return p.msg || "";
   if (p.type === "forecast") return `${settings().climate[p.zone]?.n || p.zone}: ${p.mm24} mm / 24 h, ${p.mm72} mm / 3 days`;
   if (p.type === "dam") return `${IX.damById[p.dam]?.n || p.dam}: ${FT.damStatus[p.status]?.n || p.status}${p.notice ? " · " + p.notice : ""}`;
   if (p.type === "reading") return `${p.station}: ${p.value} ${(READING_KINDS.find(k => k[0] === p.kind) || [0, ""])[1].replace(/^.*\(|\)$/g, "")}`;
   return "";
 }
-function localDT(ms) { const d = new Date(ms); return new Date(d.getTime() - d.getTimezoneOffset() * 6e4).toISOString().slice(0, 16); }
+export function localDT(ms) { const d = new Date(ms); return new Date(d.getTime() - d.getTimezoneOffset() * 6e4).toISOString().slice(0, 16); }
 
 function agencyRequestView() {
   const req = AG.own?.request, dec = !req && AG.own?.decision;
@@ -152,7 +159,7 @@ function agencyRequestView() {
     <p class="small muted">If your agency isn't listed, ask an Open Tracker administrator to add it.</p>`;
 }
 
-async function agencySubmit(form) {
+export async function agencySubmit(form) {
   const err = form.querySelector("#ag-err");
   const v = id => form.querySelector(id)?.value ?? "";
   try {
@@ -181,7 +188,7 @@ async function agencySubmit(form) {
     if (err) err.textContent = e?.code === "invalid_argument" ? "Your access level can't publish yet. Ask the Open Tracker owner to invite you as a Contributor or Editor." : e?.message && !e.code ? e.message : "That didn't publish. Check your connection and try again.";
   }
 }
-async function agencyAct(act, el) {
+export async function agencyAct(act, el) {
   try {
     if (act === "ag-type") { UI.ag.type = el.dataset.k; return render(); }
     if (act === "ag-retract") { if (!/^[A-Za-z0-9_-]{1,200}$/.test(el.dataset.id)) return; await DB.api.doc(`agencyData/${DB.uid}/posts/${el.dataset.id}`).update({retracted: true, retractedAt: new Date().toISOString()}); toast("Withdrawn."); }

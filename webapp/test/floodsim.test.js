@@ -3,11 +3,8 @@
    drains to the sea and the grid's edge, rises from rivers, and is written out within the replay size limits. */
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const fs = require("node:fs");
-const path = require("node:path");
-const vm = require("node:vm");
 
-const FLOODSIM = vm.runInThisContext(fs.readFileSync(path.join(__dirname, "..", "..", "src", "features", "floodsim.js"), "utf8") + "\nFLOODSIM;");
+const {FLOODSIM} = require("../../src/features/floodsim.js");   /* the browser's own module (Node 22.12+ loads ES modules with require) */
 
 /* a bowl: ground rises 0.05 m per cell away from the centre */
 function bowl(w, h, slope = 0.05) {
@@ -92,4 +89,12 @@ test("rain falls as a triangle that adds up to the storm total", () => {
   for (let t = 0; t < 6 * 3600; t += 10) sum += FLOODSIM.rainRate(120, 6, t + 5) * 10;
   close(sum * 1000, 120, 1e-3);
   assert.equal(FLOODSIM.rainRate(120, 6, 7 * 3600), 0);
+  /* the per-step amounts are exact, even for uneven steps that straddle the peak */
+  const cuts = [0, 1234.5, 10799, 10801, 15000, 21599.9, 21600, 30000];
+  let total = 0;
+  for (let k = 1; k < cuts.length; k++) total += FLOODSIM.rainDepth(120, 6, cuts[k - 1], cuts[k]);
+  close(total * 1000, 120, 1e-12);
+  close(FLOODSIM.rainDepth(120, 6, 0, 3 * 3600) * 1000, 60, 1e-12);   /* half before the peak */
+  close(FLOODSIM.rainDepth(120, 6, 10799, 10801), FLOODSIM.rainRate(120, 6, 10800) * 2, 1e-6);
+  assert.equal(FLOODSIM.rainDepth(120, 6, 6 * 3600, 9 * 3600), 0);
 });

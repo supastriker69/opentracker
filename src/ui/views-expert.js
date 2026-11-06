@@ -1,9 +1,14 @@
 /* ===== Expert mode: full filters, 3D map, ranked table, model inputs ===== */
+import {FT} from "../data/data.js";
+import {chip, computeRisk, data, esc, HORIZONS, icon, IX, LEVELS, LVL_RANK, MONTHS, NOW, settings, UI} from "../core/core.js";
+import {damState} from "../features/agency.js";
+import {outlookSettings} from "../features/outlook.js";
+
 function exCtx() {
   const e = UI.ex;
   return {month: +e.month, horizon: e.horizon, rain: e.rain === "mm" ? "mm" : "auto", mm: +e.mm, tide: e.tide, dams: e.dams};
 }
-function exHot() {
+export function exHot() {
   const e = UI.ex;
   const ctx = exCtx();
   return IX.hot.filter(h => (e.country === "ALL" || h.c === e.country) && (!e.area || h.r === e.area) && (h.d || []).some(d =>
@@ -14,7 +19,7 @@ function exHot() {
 }
 function pct(x) { return Math.round(x * 100) + "%"; }
 
-function viewExpert() {
+export function viewExpert() {
   const e = UI.ex, st = settings();
   const rows = exHot();
   const areas = FT.areas.filter(a => e.country === "ALL" || a.c === e.country);

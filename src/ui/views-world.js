@@ -1,9 +1,21 @@
 /* ===== Flood and heat for every country: the world, a country's projected reach, a town, and the 3D projection ===== */
-const RCH = {day: 0, timer: null};   /* the country reach screen: chosen forecast day and its play timer */
+import {alertBanners, chip, crumbsFor, esc, ICON, IX, km, placeCenter, placeCountry, placeName, riskOf, UI} from "../core/core.js";
+import {HOST} from "../core/host.js";
+import {contributeCta} from "../features/contribute.js";
+import {FLOODSIM} from "../features/floodsim.js";
+import {dayName, dayPhrase, depthWords, floodChip, floodLevel, floodSigns, fmtArea, fmtPeople, fmtVolume, hazardsDoc, hazardsUpdated, HEAT_ADVICE, HEAT_LEVELS, heatChip, heatNear, heatReach, pools, rain3, signChip} from "../features/hazards.js";
+import {alertMeHtml} from "../features/notify.js";
+import {buildingsText, PROJ, PROJ_AREAS, projectionAssumptions, projectionAvailable, projectionScenarios, projectionTarget, projHourText, projReset} from "../features/projection.js";
+import {replayPick, replaysFor} from "../features/replay.js";
+import {countryFit, countryName, DETAILED, WIX, worldPlace} from "../features/world.js";
+import {render} from "./main.js";
+import {emergencyHtml, replaysCard, viewWhere} from "./views-simple.js";
+
+export const RCH = {day: 0, timer: null};   /* the country reach screen: chosen forecast day and its play timer */
 
 /* the line under a screen when live data is missing, depending on where Open Tracker runs */
 function liveDataMissing(name) {
-  return window.WEBAPP
+  return HOST.web
     ? `Live flood and heat data for ${esc(name)} appears once this site's data feeds have run.`
     : `Live flood and heat data shows here once an administrator imports the latest snapshot from the Open Tracker website (Admin → Live data).`;
 }
@@ -15,7 +27,7 @@ function sourcesNote(doc) {
 }
 
 /* ---------- the world ---------- */
-function viewWorld() {
+export function viewWorld() {
   const doc = hazardsDoc("world");
   const rows = doc ? Object.entries(doc.countries).map(([c, v]) => ({c, v})).sort((a, b) => (b.v.heat ?? -1) - (a.v.heat ?? -1) || (b.v.alerts + b.v.disasters) - (a.v.alerts + a.v.disasters)) : [];
   const watch = rows.filter(r => (r.v.heat ?? 0) >= 2 || r.v.alerts || r.v.disasters || r.v.risingRivers);
@@ -39,14 +51,14 @@ function countryPick(c, v) {
     v.disasters ? `${v.disasters} current disaster${v.disasters > 1 ? "s" : ""}` : "", v.risingRivers ? `${v.risingRivers} river${v.risingRivers > 1 ? "s" : ""} rising fast` : ""].filter(Boolean);
   return `<button class="pick" data-act="reach" data-k="${esc(c)}"><span class="grow"><span class="t">${esc(countryName(c))}</span><span class="s">${esc(bits.join(" · ") || "Live data available")}</span></span>${Number.isFinite(v.heat) ? heatChip(v.heat) : ""}</button>`;
 }
-function countrySelect(selected) {
+export function countrySelect(selected) {
   const opts = Object.entries(WORLD.countries).sort((a, b) => a[1].n.localeCompare(b[1].n)).map(([c, v]) => `<option value="${esc(c)}" ${c === selected ? "selected" : ""}>${esc(v.n)}</option>`).join("");
   return `<label class="field"><span>Choose a country</span><select id="country-pick"><option value="">Choose…</option>${opts}</select></label>`;
 }
 function heatLegend() {
   return `<div class="legend" aria-label="Heat levels">${HEAT_LEVELS.map(l => `<span><i class="sw heat-sw heat-${l.k}"></i>${esc(l.n)}</span>`).join("")}</div>`;
 }
-function worldMapView() {
+export function worldMapView() {
   const doc = hazardsDoc("world");
   const world = {};
   if (doc) for (const [c, v] of Object.entries(doc.countries)) if (Number.isFinite(v.heat)) world[c] = v.heat;
@@ -54,7 +66,7 @@ function worldMapView() {
 }
 
 /* ---------- a country: how far heat and floods could reach ---------- */
-function viewReach(cc) {
+export function viewReach(cc) {
   const doc = hazardsDoc(cc), name = countryName(cc);
   const days = doc && doc.heat[0] ? doc.heat[0].days : [];
   const day = Math.min(RCH.day, Math.max(0, days.length - 1));
@@ -90,18 +102,18 @@ function viewReach(cc) {
     ${doc ? sourcesNote(doc) : ""}`;
 }
 const fmtTemp = v => (Number.isFinite(v) ? `${Math.round(v)} °C` : "—");
-function reachMapView(cc) {
+export function reachMapView(cc) {
   const doc = hazardsDoc(cc);
   const day = RCH.day;
   const heatTowns = doc ? doc.heat.filter(h => h.days[day]).map(h => ({id: h.id, ll: h.ll, level: h.days[day].level, pop: h.pop})) : [];
   return {show: "none", heatTowns, floodSigns: floodSigns(doc), fit: countryFit(cc)};
 }
-function reachToggle() {
+export function reachToggle() {
   if (RCH.timer) { reachStop(); render(); return; }
   RCH.timer = setInterval(() => { if (UI.screen !== "reach" && !(UI.screen === "answer" && UI.place?.type === "wc")) { reachStop(); return; } RCH.day = (RCH.day + 1) % 7; render(); }, 1600);
   render();
 }
-function reachStop() { clearInterval(RCH.timer); RCH.timer = null; }
+export function reachStop() { clearInterval(RCH.timer); RCH.timer = null; }
 
 /* ---------- heat and flood cards for one spot (towns, and Ghana's and Nigeria's flood areas) ---------- */
 function heatCardHtml(ll, cc) {
@@ -134,7 +146,7 @@ function floodCardHtml(ll, cc, withProject) {
 }
 
 /* ---------- a town anywhere ---------- */
-function viewWorldPlace(p) {
+export function viewWorldPlace(p) {
   const w = worldPlace(p.id);
   if (!w) { UI.place = null; return viewWhere(); }
   const crumbs = crumbsFor(p);
@@ -157,7 +169,7 @@ function viewWorldPlace(p) {
 }
 
 /* ---------- the projected flood in 3D ---------- */
-function viewProject() {
+export function viewProject() {
   const p = UI.place, t = projectionTarget(p);
   if (!t) return `<button class="back" data-act="back">← Back</button><h1>Projected flood</h1><p>Choose a town or a flood area first.</p>`;
   if (PROJ.key && PROJ.key !== t.key) projReset();
@@ -216,7 +228,7 @@ function projectionResultHtml(res) {
       <ul class="plain">${projectionAssumptions(res).map(a => `<li class="small">${esc(a)}</li>`).join("")}</ul>
       <p class="small muted">A projection shows what this storm would do on today's ground. Follow official warnings: they know the drains, dams and defences.</p></details>`;
 }
-function projectMapView() {
+export function projectMapView() {
   const t = projectionTarget(UI.place);
   const avail = projectionAvailable();
   return {show: "none", streets: avail, terrain: avail, three: true, pitch: 60,
@@ -224,7 +236,7 @@ function projectMapView() {
 }
 
 /* ---------- live cards on Ghana's and Nigeria's detailed pages ---------- */
-function liveCardsFor(p) {
+export function liveCardsFor(p) {
   const c = placeCountry(p);
   if (!c) return "";
   if (p.type === "country") return `<button class="btn" data-act="reach" data-k="${c}">Flood and heat reach across ${esc(countryName(c))}</button>`;

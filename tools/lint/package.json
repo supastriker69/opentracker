@@ -1,10 +1,11 @@
 {
   "name": "opentracker-lint",
   "private": true,
-  "description": "Lint tools for Open Tracker (run by tools/check.sh and CI)",
+  "description": "Build and lint tools for Open Tracker: the browser-code bundler, ESLint and axe-core (run by tools/build.py, tools/check.sh and CI)",
   "license": "Apache-2.0",
   "devDependencies": {
     "axe-core": "4.14.0",
+    "esbuild": "0.28.2",
     "eslint": "10.13.0",
     "globals": "17.13.0"
   }

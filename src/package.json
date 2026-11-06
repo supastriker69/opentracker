@@ -1,0 +1,5 @@
+{
+  "//": "The browser app is ES modules (bundled by tools/build.py); this tells Node so too, for the tests and modelling/floodsim_run.mjs.",
+  "type": "module",
+  "private": true
+}

@@ -12,31 +12,11 @@ import hashlib, json, pathlib, shutil, subprocess, zipfile
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 SRC, ASSETS, WEB, DIST, WORLD = ROOT / "src", ROOT / "assets", ROOT / "webapp", ROOT / "dist", ROOT / "world" / "out"
 
-# Load order matters only for top-level statements; every module is plain script sharing one scope.
-MODULES = [
-    "data/data.js",          # Ghana and Nigeria: areas, flood hotspots, dams, past floods, agencies
-    "core/core.js",          # state, settings, risk model, places, search, shared helpers
-    "core/auth.js",          # permissions, roles, who may do what
-    "features/agency.js",    # agency publishing (posts) and what the public reads from agencies
-    "features/notify.js",    # public notifications and followed places
-    "features/outlook.js",   # next rainy season outlook: chance, months to watch, reach
-    "features/contribute.js",# open-source contributions and the suggestion box
-    "features/replay.js",    # flood replays: model hour by hour, satellite date by date, years
-    "features/world.js",     # every country and town (world tables), their search entries and emergency numbers
-    "features/hazards.js",   # live flood and heat data per country: heat levels, flood signs, projected reach
-    "features/floodsim.js",  # the flood projection model: depth, reach and volume on real ground (pure)
-    "features/terrain.js",   # ground heights from Terrarium elevation tiles (web app)
-    "features/projection.js",# running and showing a projection for any town
-    "core/repo.js",          # every write: permission-checked and audit-logged
-    "ui/map.js",             # MapLibre map, 2D and 3D
-    "ui/views-simple.js",    # the simple, all-ages screens
-    "ui/views-expert.js",    # expert filters and model
-    "ui/views-admin.js",     # admin backend
-    "ui/views-world.js",     # world, country reach, any town, 3D flood projection
-    "features/analytics.js", # visit analytics and its dashboard
-    "core/approval.js",      # approval of agency changes
-    "ui/main.js",            # routing, events, start-up
-]
+# The browser app is ES modules (src/), bundled by esbuild (pinned in tools/lint/package.json) from one entry per site:
+# src/app.js for claude.ai, src/app-web.js for your own domain (adds the web layer, src/web/). Each module imports what
+# it uses and exports only what others use. The page supplies GEO, WORLD and MAPLIB_URL; claude.ai supplies window.claude.
+ENTRY_CLAUDE, ENTRY_WEB = SRC / "app.js", SRC / "app-web.js"
+ESBUILD = ROOT / "tools" / "lint" / "node_modules" / "esbuild" / "bin" / "esbuild"
 MAPLIB_VERSION = "6.15.0"   # MapLibre GL JS: vendored for the web app, from jsDelivr (npm mirror) for the claude.ai page
 MAPLIB_DIR = ASSETS / "vendor" / f"maplibre-gl-{MAPLIB_VERSION}"
 MAPLIB_CDN = f"https://cdn.jsdelivr.net/npm/maplibre-gl@{MAPLIB_VERSION}/dist/maplibre-gl.mjs"
@@ -64,8 +44,15 @@ body{margin:0}img{max-width:100%}[hidden]{display:none!important}
 def read(p): return p.read_text(encoding="utf-8")
 
 
-def app_js():
-    return "\n".join(f"/* ---- {m} ---- */\n{read(SRC / m)}" for m in MODULES)
+def app_js(entry):
+    """the whole browser app as one script (a function scope, so nothing leaks into the page)"""
+    if not ESBUILD.exists():
+        raise SystemExit("esbuild is missing: run  npm ci --prefix tools/lint")
+    out = subprocess.run([str(ESBUILD), str(entry), "--bundle", "--format=iife", "--target=es2022", "--charset=utf8",
+                          "--legal-comments=none", "--log-level=warning"], check=True, capture_output=True, text=True, cwd=ROOT)
+    if out.stderr.strip():
+        raise SystemExit("esbuild warned:\n" + out.stderr)
+    return out.stdout
 
 
 WORLD_MIN_POP = 50_000   # towns in the app's world list: capitals and places of at least this many people
@@ -116,12 +103,12 @@ const MAPLIB_URL = "{MAPLIB_CDN}";
 def build_webapp(js, geo, css, version):
     out = DIST / "opentracker-webapp"
     pub = out / "public"
-    shutil.copytree(WEB, out, ignore=shutil.ignore_patterns("node_modules", ".data", "client", "test", "*.tmp"))
+    shutil.copytree(WEB, out, ignore=shutil.ignore_patterns("node_modules", ".data", "client", "test", "load", "*.tmp"))
     (pub / "vendor").mkdir(parents=True)
     shutil.copytree(WEB / "client" / "icons", pub / "icons")
     for f in ["maplibre-gl.mjs", "maplibre-gl-worker.mjs", "LICENSE.txt"]:   # MapLibre loads its worker from beside itself
         shutil.copy(MAPLIB_DIR / f, pub / "vendor" / f)
-    for f in ["webapp.js", "console.js", "console.html"]:
+    for f in ["console.js", "console.html"]:
         shutil.copy(WEB / "client" / f, pub / f)
     (pub / "sw.js").write_text(read(WEB / "client" / "sw.js").replace("__BUILD__", version), encoding="utf-8")
     (pub / "app.js").write_text('"use strict";\nconst MAPLIB_URL = "/vendor/maplibre-gl.mjs";\n' + js, encoding="utf-8")
@@ -162,22 +149,22 @@ def build_webapp(js, geo, css, version):
 <body>
 {HEADER}
 <script src="/geo.js?v={version}"></script>
-<script src="/webapp.js?v={version}"></script>
 <script src="/app.js?v={version}"></script>
 </body>
 </html>
 """, encoding="utf-8")
+    subprocess.run(["node", str(out / "lib" / "precompress.js"), str(pub)], check=True, capture_output=True)
     zpath = DIST / "opentracker-webapp.zip"
     with zipfile.ZipFile(zpath, "w", zipfile.ZIP_DEFLATED) as z:
         for f in sorted(out.rglob("*")):
-            if f.is_file():
+            if f.is_file() and f.suffix not in (".br", ".gz"):   # made again when the image is built
                 z.write(f, "opentracker-webapp/" + str(f.relative_to(out)))
     return out
 
 
 def run_data(expr):
     """evaluates an expression against the data module with Node and returns the JSON result"""
-    script = "const FT = {};\n" + read(SRC / "data" / "data.js").replace("const FT = {};", "") + f"\nprocess.stdout.write(JSON.stringify({expr}));"
+    script = read(SRC / "data" / "data.js").replace("export const FT = {};", "const FT = {};") + f"\nprocess.stdout.write(JSON.stringify({expr}));"
     return json.loads(subprocess.run(["node", "-e", script], check=True, capture_output=True, text=True).stdout)
 
 
@@ -199,15 +186,14 @@ def main():
     if DIST.exists():
         shutil.rmtree(DIST)
     DIST.mkdir()
-    js, geo, css = app_js(), geo_js(), read(SRC / "ui" / "style.css")
-    version = hashlib.sha256("".join([js, css, MAPLIB_VERSION] + [read(WEB / "client" / f) for f in ("webapp.js", "sw.js", "console.js", "console.html")]).encode()).hexdigest()[:10]
+    js, js_web, geo, css = app_js(ENTRY_CLAUDE), app_js(ENTRY_WEB), geo_js(), read(SRC / "ui" / "style.css")
+    version = hashlib.sha256("".join([js_web, css, MAPLIB_VERSION] + [read(WEB / "client" / f) for f in ("sw.js", "console.js", "console.html")]).encode()).hexdigest()[:10]
     html = build_artifact(js, geo, css)
-    out = build_webapp(js, geo, css, version)
-    (DIST / "app.check.js").write_text('"use strict";\nconst GEO = {};\nconst WORLD = {countries: {}, places: []};\nconst MAPLIB_URL = "";\n' + read(WEB / "client" / "webapp.js") + "\n" + js, encoding="utf-8")
+    out = build_webapp(js_web, geo, css, version)
     release = ROOT / "release" / "opentracker-webapp"   # the built web app, committed so it can be deployed straight from the repository
     if release.exists():
         shutil.rmtree(release)
-    shutil.copytree(out, release, ignore=shutil.ignore_patterns("node_modules"))
+    shutil.copytree(out, release, ignore=shutil.ignore_patterns("node_modules", "*.br", "*.gz"))   # the image compresses its own copy
     print(f"dist/opentracker.html  {len(html) / 1024:.0f} KB")
     print(f"dist/opentracker-webapp/  version {version}  ({sum(f.stat().st_size for f in out.rglob('*') if f.is_file()) / 1024:.0f} KB)")
 

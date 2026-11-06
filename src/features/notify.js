@@ -1,10 +1,18 @@
 /* ===== Public notifications and "My alerts" =====
    Sources, newest first: notices sent from Admin ("notifications"), agency warnings marked for broadcast,
-   and — on the self-hosted web app — notices from its push server (window.WEBAPP).
+   and — on the self-hosted web app — notices from its push server (HOST.web).
    Saved places live in this browser only (localStorage); they decide which notices are "for you".
    Real device push needs the self-hosted web app; inside claude.ai alerts appear while the page is open. */
-const NOTICE_LEVELS = [["warning", "Flood warning"], ["watch", "Flood watch"], ["info", "Information"], ["clear", "All clear"]];
-const MY = {places: [], seen: 0, shown: new Set(), since: Date.now() - 30e3};
+import {FT} from "../data/data.js";
+import {agencies} from "../core/auth.js";
+import {data, esc, fmtDate, ICON, IX, km, placeCenter, placeCountry, placeHot, placeName, toast, UI} from "../core/core.js";
+import {HOST} from "../core/host.js";
+import {approvedPosts} from "./agency.js";
+import {countryName, worldCountry, worldPlace} from "./world.js";
+import {header} from "../ui/main.js";
+
+export const NOTICE_LEVELS = [["warning", "Flood warning"], ["watch", "Flood watch"], ["info", "Information"], ["clear", "All clear"]];
+export const MY = {places: [], seen: 0, shown: new Set(), since: Date.now() - 30e3};
 const MY_MAX = 12;
 (function loadMy() {
   try {
@@ -13,24 +21,24 @@ const MY_MAX = 12;
     MY.seen = +localStorage.getItem("ft-seen") || 0;
   } catch (e) { /* storage blocked: alerts still work for this visit */ }
 })();
-function saveMy() { try { localStorage.setItem("ft-places", JSON.stringify(MY.places)); localStorage.setItem("ft-seen", String(MY.seen)); } catch (e) {} }
+export function saveMy() { try { localStorage.setItem("ft-places", JSON.stringify(MY.places)); localStorage.setItem("ft-seen", String(MY.seen)); } catch (e) {} }
 
-const placeKey = p => p && p.type !== "water" ? p.type + ":" + p.id : "";
-function keyPlace(k) {
+export const placeKey = p => p && p.type !== "water" ? p.type + ":" + p.id : "";
+export function keyPlace(k) {
   const i = k.indexOf(":"), type = k.slice(0, i), id = k.slice(i + 1);
   const ok = type === "hotspot" ? IX.byId[id] : type === "area" ? IX.areaById[id] : type === "country" ? FT.countries[id]
     : type === "wc" ? worldCountry(id) : type === "wp" ? worldPlace(id) : null;
   return ok ? {type, id} : null;
 }
-function myPlaces() { return MY.places.map(keyPlace).filter(Boolean); }
-function isMine(p) { return MY.places.includes(placeKey(p)); }
-function toggleMine(p) {
+export function myPlaces() { return MY.places.map(keyPlace).filter(Boolean); }
+export function isMine(p) { return MY.places.includes(placeKey(p)); }
+export function toggleMine(p) {
   const k = placeKey(p); if (!k) return;
   if (isMine(p)) MY.places = MY.places.filter(x => x !== k);
   else { if (MY.places.length >= MY_MAX) { toast(`You can follow up to ${MY_MAX} places. Remove one first.`); return; } MY.places.push(k); }
   saveMy();
   toast(isMine(p) ? `You'll get alerts for ${placeName(p)}.` : `Alerts for ${placeName(p)} turned off.`);
-  window.WEBAPP?.sync();
+  HOST.web?.sync();
 }
 
 /* ---------- reading notices ---------- */
@@ -47,7 +55,7 @@ function publicNotices() {
   const now = Date.now();
   const out = data("notifications").map(n => normNotice(n, "fl"))
     .concat(approvedPosts("warning").filter(p => p.push).map(p => normNotice({id: p.uid + "-" + p.id, level: p.level, title: "", msg: p.msg, c: p.c, areas: p.areas, agencyName: p.agency.n, at: p.at, expires: p.expires}, "ag")))
-    .concat((window.WEBAPP?.notices() || []).map(n => normNotice(n, "web")));
+    .concat((HOST.web?.notices() || []).map(n => normNotice(n, "web")));
   return out.filter(n => n && (!n.expires || Date.parse(n.expires) > now)).sort((a, b) => b.t - a.t);
 }
 function noticeMatches(n, p) {
@@ -68,7 +76,7 @@ function noticesForMe() {
   if (!mine.length) return all.map(n => ({n, places: []}));
   return all.map(n => ({n, places: mine.filter(p => noticeMatches(n, p))})).filter(x => x.places.length);
 }
-function unseenCount() { return noticesForMe().filter(x => x.n.t > MY.seen).length; }
+export function unseenCount() { return noticesForMe().filter(x => x.n.t > MY.seen).length; }
 function noticeTitle(n) { return n.title || (NOTICE_LEVELS.find(l => l[0] === n.level) || [0, "Notice"])[1]; }
 function noticeWhere(n) {
   const a = n.areas.map(id => IX.areaById[id]?.n).filter(Boolean);
@@ -77,7 +85,7 @@ function noticeWhere(n) {
 }
 
 /* live pop-up while the page is open: only notices sent after it loaded, each once */
-function checkNewNotices() {
+export function checkNewNotices() {
   const fresh = noticesForMe().filter(x => x.n.t >= MY.since && !MY.shown.has(x.n.id));
   fresh.forEach(x => MY.shown.add(x.n.id));
   if (!fresh.length || UI.screen === "alerts") return;
@@ -92,7 +100,7 @@ function checkNewNotices() {
 }
 
 /* ---------- screens ---------- */
-function alertMeHtml(p) {
+export function alertMeHtml(p) {
   if (!placeKey(p)) return "";
   const on = isMine(p);
   return `<button class="btn ${on ? "" : "ghost"}" data-act="alert-me" aria-pressed="${on}">${ICON.bell}${on ? "You get alerts for this place · Turn off" : "Alert me about this place"}</button>`;
@@ -103,7 +111,7 @@ function noticeCard(n, places) {
     <p>${esc(n.msg)}</p>
     <p class="small muted">From <b>${esc(n.agency)}</b> · ${esc(noticeWhere(n))}${places?.length ? " · Matches " + esc(places.map(placeName).join(", ")) : ""}${n.expires ? " · Until " + esc(fmtDate(n.expires)) : ""}</p></article>`;
 }
-function viewAlerts() {
+export function viewAlerts() {
   const mine = myPlaces(), list = noticesForMe();
   MY.seen = Date.now(); saveMy();
   return `
@@ -117,10 +125,10 @@ function viewAlerts() {
     <div class="card"><h2>${mine.length ? "Alerts for your places" : "Current alerts"}</h2>
       ${list.length ? `<div class="stack">${list.map(x => noticeCard(x.n, x.places)).join("")}</div>` : `<p>No alerts right now${mine.length ? " for your places" : ""}. Official warnings appear here as soon as an agency sends them.</p>`}
     </div>
-    <div class="card"><h2>Get alerts on your phone</h2>${window.WEBAPP ? window.WEBAPP.controlsHtml() : installGuideHtml(false)}</div>`;
+    <div class="card"><h2>Get alerts on your phone</h2>${HOST.web ? HOST.web.controlsHtml() : installGuideHtml(false)}</div>`;
 }
 /* how to put Open Tracker on a home screen, like Stake.com and other web apps that skip the app stores */
-function installGuideHtml(hosted) {
+export function installGuideHtml(hosted) {
   return `
     ${hosted ? "" : `<p class="small muted">Phone notifications come from the Open Tracker web app at its own web address. On that site, follow these steps once and Open Tracker works like an app, with no app store download.</p>`}
     <details class="howto" open><summary><b>iPhone or iPad</b> (Safari)</summary><ol>

@@ -1,7 +1,16 @@
 /* ===== Open-source contributions: flood reports, corrections, suggestions and data sources from the public =====
    Inside claude.ai each person writes only their own document, contributions/<their id> (database rule);
    administrators read all of them and record decisions in "reviews", which only they can write.
-   On the self-hosted web app the same form posts to the server (window.WEBAPP.contribute). */
+   On the self-hosted web app the same form posts to the server (HOST.web.contribute). */
+import {APPROVAL} from "../core/approval.js";
+import {AUTH} from "../core/auth.js";
+import {$, data, DB, esc, fmtDate, ICON, placeCountry, placeName, safeUrl, toast, UI} from "../core/core.js";
+import {HOST} from "../core/host.js";
+import {errText, REPO} from "../core/repo.js";
+import {keyPlace, placeKey} from "./notify.js";
+import {ensureNames, nameOf} from "../ui/admin/people.js";
+import {afterData, render} from "../ui/main.js";
+
 const CONTRIB_TYPES = [
   ["report", "Report a flood", "Tell us where it flooded, when, and how deep."],
   ["correction", "Suggest a correction", "Something wrong or missing about a place?"],
@@ -13,7 +22,7 @@ const SUGGEST_CATS = [["feature", "A new feature"], ["data", "Data or informatio
 const CONTRIB = {mine: null, sub: null};
 
 /* the contributor's own items (claude.ai): one live subscription */
-function syncContribSub() {
+export function syncContribSub() {
   if (!DB.api || !DB.uid || CONTRIB.sub) return;
   try { CONTRIB.sub = DB.api.doc("contributions/" + DB.uid).onSnapshot(s => { CONTRIB.mine = s.exists ? s.data() : null; afterData(); }, () => {}); } catch (e) {}
 }
@@ -39,12 +48,12 @@ function readContribution(form, type) {
   if (type === "report" && !item.place && !item.placeText) throw new Error("Say where the flooding is.");
   return item;
 }
-async function submitContribution(form) {
+export async function submitContribution(form) {
   const err = form.querySelector("#c-err");
   try {
     const item = readContribution(form, form.dataset.type);
     item.at = new Date().toISOString();
-    if (window.WEBAPP) await window.WEBAPP.contribute(item);
+    if (HOST.web) await HOST.web.contribute(item);
     else {
       if (!DB.api || !DB.uid) throw new Error("Sign in to send contributions here, or use the Open Tracker website.");
       const id = "c" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
@@ -61,7 +70,7 @@ async function submitContribution(form) {
 }
 
 /* ---------- public screen ---------- */
-function viewContribute() {
+export function viewContribute() {
   const c = UI.contrib;
   const head = `<button class="back" data-act="back">← Back</button><h1>Help improve Open Tracker</h1>`;
   if (c.sent) return `${head}<div class="notice info">${ICON.info}<div><b>Thank you. We've received it.</b>Our team checks every contribution against official sources before anything changes on the map.</div></div>
@@ -97,7 +106,7 @@ function viewContribute() {
     </form>`;
 }
 function myContribsHtml() {
-  const items = Object.entries((window.WEBAPP ? window.WEBAPP.sentItems() : CONTRIB.mine?.items) || {}).sort((a, b) => String(b[1].at).localeCompare(String(a[1].at)));
+  const items = Object.entries((HOST.web ? HOST.web.sentItems() : CONTRIB.mine?.items) || {}).sort((a, b) => String(b[1].at).localeCompare(String(a[1].at)));
   if (!items.length) return "";
   const label = s => ({accepted: "Accepted, thank you", rejected: "Not used"}[s] || "Waiting to be checked");
   return `<div class="card"><h2>What you've sent</h2><ul class="plain">${items.slice(0, 20).map(([id, it]) => {
@@ -105,7 +114,7 @@ function myContribsHtml() {
     return `<li><b>${esc(CONTRIB_TYPES.find(t => t[0] === it.type)?.[1] || it.type)}</b> · ${esc(fmtDate(it.at))}<br><span class="small">${esc(it.text.slice(0, 140))}</span><br><span class="small muted">${label(r?.status)}${r?.note ? " · " + esc(r.note) : ""}</span></li>`;
   }).join("")}</ul></div>`;
 }
-function contributeCta(p) {
+export function contributeCta(p) {
   return `<div class="card contribute-cta"><h2>Seen something we should know?</h2><div class="toolbar">
     <button class="sbtn" data-act="contribute" data-k="report">Report a flood${p ? " here" : ""}</button>
     ${p ? `<button class="sbtn" data-act="contribute" data-k="correction">Suggest a correction</button>` : ""}
@@ -113,7 +122,7 @@ function contributeCta(p) {
 }
 
 /* ---------- admin: every contribution, newest first ---------- */
-const AD_CONTRIB = {rows: null, loading: false, filter: "new"};
+export const AD_CONTRIB = {rows: null, loading: false, filter: "new"};
 async function loadContribs() {
   if (AD_CONTRIB.loading) return;
   AD_CONTRIB.loading = true;
@@ -126,7 +135,7 @@ async function loadContribs() {
   AD_CONTRIB.loading = false;
   if (UI.mode === "admin" && UI.admin.tab === "contributions") render();
 }
-function adContributions() {
+export function adContributions() {
   if (!AD_CONTRIB.rows) { loadContribs(); return `<div class="card"><p>Loading contributions…</p></div>`; }
   const st = r => reviewOf(r.uid, r.id)?.status || "new";
   const rows = AD_CONTRIB.rows.filter(r => !AD_CONTRIB.filter || st(r) === AD_CONTRIB.filter);
@@ -150,7 +159,7 @@ function adContributions() {
           ${r.place?.type === "hotspot" && AUTH.can("data.edit") ? `<button class="sbtn" data-act="ad-edit" data-k="hotspots" data-id="${esc(r.place.id)}">Open the place record</button>` : ""}</div></article>`;
     }).join("") || `<p>Nothing here.</p>`}</div></div>`;
 }
-async function contribAct(act, el) {
+export async function contribAct(act, el) {
   try {
     if (act === "ct-reload") { AD_CONTRIB.rows = null; return render(); }
     if (act === "ct-decide") {

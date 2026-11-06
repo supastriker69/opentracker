@@ -9,6 +9,9 @@
    4. Official outlooks: areas on the latest official high-risk lists (NIHSA Annual Flood Outlook, GMet and NiMet
       seasonal forecasts) and the ENSO state scale the odds. Administrators update these lists every year.
    The outlook ranks areas by likelihood and likely extent. It is not a flood map from terrain modelling. */
+import {FT} from "../data/data.js";
+import {chip, esc, IX, LEVELS, MONTHS, NOW, pDay, placeName, safeUrl, settings} from "../core/core.js";
+
 const OUTLOOK_DEFAULTS = {
   year: 2027,
   recordStart: 2015,
@@ -23,16 +26,16 @@ const OUTLOOK_DEFAULTS = {
       areas: ["GH-AA", "GH-CP", "GH-EP"]}
   ]
 };
-const ENSO = {neutral: [1, "No ENSO adjustment"], elnino: [.9, "El Niño: slightly drier"], lanina: [1.15, "La Niña: slightly wetter"]};
+export const ENSO = {neutral: [1, "No ENSO adjustment"], elnino: [.9, "El Niño: slightly drier"], lanina: [1.15, "La Niña: slightly wetter"]};
 /* how far water usually spreads, by what floods the area (km before scaling by severity and chance) */
 const REACH = {flash: .8, coast: 1.5, river: 4, floodplain: 12};
 const FLOODPLAIN_DAMS = ["lagdo", "niger", "bagre", "akosombo"];
-const OUTLOOK_CACHE = new Map();
+export const OUTLOOK_CACHE = new Map();
 
-function outlookSettings() { return Object.assign({}, OUTLOOK_DEFAULTS, settings().outlook || {}); }
+export function outlookSettings() { return Object.assign({}, OUTLOOK_DEFAULTS, settings().outlook || {}); }
 function rainyMonths(clim) { return clim.map((mm, i) => [mm, i]).filter(([mm]) => mm >= 80).map(([, i]) => i); }
 /* [5, 6, 7, 9, 10] → "May to Jul and Sep to Oct"; runs may wrap around the new year */
-function monthRange(ms) {
+export function monthRange(ms) {
   const set = new Set(ms);
   if (!set.size) return "";
   if (set.size === 12) return "all year";
@@ -48,7 +51,7 @@ function monthRange(ms) {
 }
 const odds = p => p / Math.max(1e-6, 1 - p), fromOdds = o => o / (1 + o);
 
-function outlookFor(h) {
+export function outlookFor(h) {
   const o = outlookSettings(), key = h.id;
   if (OUTLOOK_CACHE.has(key)) return OUTLOOK_CACHE.get(key);
   const st = settings();
@@ -106,10 +109,10 @@ function outlookFor(h) {
   return r;
 }
 const REACH_WORDS = {flash: "streets and low ground nearby", coast: "the shore and lagoon edges", river: "the riverbanks and nearby low ground", floodplain: "the river floodplain"};
-function reachText(r) { return `If it floods, water usually spreads about ${r.reach < 1 ? Math.round(r.reach * 1000) + " m" : r.reach + " km"} across ${REACH_WORDS[r.reachType]}.`; }
+export function reachText(r) { return `If it floods, water usually spreads about ${r.reach < 1 ? Math.round(r.reach * 1000) + " m" : r.reach + " km"} across ${REACH_WORDS[r.reachType]}.`; }
 
 /* ---------- public screen: the season ahead, both countries ---------- */
-function viewOutlook() {
+export function viewOutlook() {
   const o = outlookSettings();
   const block = c => {
     const rows = IX.hot.filter(h => h.c === c).map(h => ({h, r: outlookFor(h)})).sort((a, b) => b.r.P - a.r.P);

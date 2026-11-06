@@ -5,7 +5,16 @@
      so if the agency edits a post after approval it goes back to waiting.
    - data edits by agency-linked editors become change requests in "changes"; approving one applies it.
    Administrators can turn approval off for everyone, or mark single agencies as trusted. */
-const APPROVAL = {
+import {agencies, AUTH} from "./auth.js";
+import {$, clone, data, DB, esc, fmtDate, settings, toast} from "./core.js";
+import {AccessError, errText, REPO} from "./repo.js";
+import {AG, POST_TYPES, postSummary, publisherMap} from "../features/agency.js";
+import {changedKeys} from "../ui/admin/audit.js";
+import {ensureNames, nameOf} from "../ui/admin/people.js";
+import {SCHEMA, tabLabel} from "../ui/admin/schema.js";
+import {render} from "../ui/main.js";
+
+export const APPROVAL = {
   /* settings.approval = {on: boolean, agencies: {<agency id>: "auto" | "review"}} */
   needed(agencyId) {
     const ap = settings().approval || {};
@@ -86,7 +95,7 @@ const APPROVAL = {
 };
 
 /* ---------- admin: Approvals tab ---------- */
-function adApprovals() {
+export function adApprovals() {
   const ap = settings().approval || {on: true, agencies: {}};
   const posts = APPROVAL.pendingPosts(), changes = APPROVAL.pendingChanges();
   ensureNames(posts.map(p => p.uid).concat(changes.map(c => c.by)));
@@ -118,7 +127,7 @@ function adApprovals() {
     }).join("") || `<p>Nothing waiting.</p>`}</div></div>`;
 }
 /* agency editors see what they sent and what happened to it */
-function myChangesHtml() {
+export function myChangesHtml() {
   const mine = data("changes").filter(c => c.by === DB.uid).sort((a, b) => String(b.at).localeCompare(String(a.at))).slice(0, 20);
   if (!APPROVAL.gate() && !mine.length) return "";
   return `<div class="card"><h2>Your changes</h2>${APPROVAL.gate() ? `<p class="small muted">Your changes go live after an administrator approves them.</p>` : ""}
@@ -126,14 +135,14 @@ function myChangesHtml() {
     ${mine.map(c => `<tr><td class="num small">${esc(fmtDate(c.at))}</td><td>${esc(tabLabel(c.coll))}</td><td class="small">${esc(c.rid)}</td><td>${c.op === "delete" ? "Delete" : c.before ? "Change" : "Add"}</td><td>${{pending: "Waiting for approval", approved: "Approved", rejected: "Not approved"}[c.status] || esc(c.status)}${c.note ? `<br><span class="small muted">${esc(c.note)}</span>` : ""}</td></tr>`).join("") || `<tr><td colspan="5">Nothing sent yet.</td></tr>`}
     </tbody></table></div></div>`;
 }
-async function approvalAct(act, el) {
+export async function approvalAct(act, el) {
   try {
     if (act === "ap-post") { await APPROVAL.decidePost(el.dataset.uid, el.dataset.id, el.dataset.ok === "1"); toast(el.dataset.ok === "1" ? "Approved. It is live now." : "Rejected."); }
     if (act === "ap-change") { await APPROVAL.decideChange(el.dataset.id, el.dataset.ok === "1", $("#ap-note-" + CSS.escape(el.dataset.id))?.value); toast(el.dataset.ok === "1" ? "Approved and applied." : "Rejected."); }
     render();
   } catch (e) { toast(errText(e)); }
 }
-async function approvalChange(el) {
+export async function approvalChange(el) {
   try {
     const ap = clone(settings().approval || {on: true, agencies: {}});
     ap.agencies = ap.agencies || {};

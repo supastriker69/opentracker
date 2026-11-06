@@ -1,4 +1,24 @@
 /* ===== Router, events, database start-up ===== */
+import {approvalAct, approvalChange} from "../core/approval.js";
+import {AUTH} from "../core/auth.js";
+import {$, COLLS, computeRisk, data, DB, esc, ICON, IX, NOW, placeCenter, placeCountry, reindex, search, settings, simpleCtx, toast, UI} from "../core/core.js";
+import {HOST} from "../core/host.js";
+import {REPO} from "../core/repo.js";
+import {agencyAct, agencySubmit, syncAgencySubs, viewAgency} from "../features/agency.js";
+import {AN, anAct, anClick, anPage, anRoom, anSearch, anStart} from "../features/analytics.js";
+import {AD_CONTRIB, contribAct, submitContribution, syncContribSub, viewContribute} from "../features/contribute.js";
+import {checkNewNotices, MY, saveMy, toggleMine, unseenCount, viewAlerts} from "../features/notify.js";
+import {outlookFor, viewOutlook} from "../features/outlook.js";
+import {PROJ, projExport, projShow, projStop, projToggle, runProjection} from "../features/projection.js";
+import {replayImportFile, replayMapView, replayOutlineSubmit, replayShow, replayStop, replayToggle, viewReplays, yearOverlay, yearRange, yearsStop, yearsToggle} from "../features/replay.js";
+import {countryPlace, DETAILED, worldCountry, worldPlace} from "../features/world.js";
+import {peopleSearch} from "./admin/people.js";
+import {fitToBox, mapFly, mapMount, mapProjection, mapUpdate, MAPV, mapZoom} from "./map.js";
+import {adminAct, adminImport, adminSubmit, liveImport, memberChange, viewAdmin} from "./views-admin.js";
+import {exHot, viewExpert} from "./views-expert.js";
+import {resultsHtml, viewAnswer, viewMap, viewStatus, viewWhere, yearMatch} from "./views-simple.js";
+import {projectMapView, RCH, reachMapView, reachStop, reachToggle, viewProject, viewReach, viewWorld, worldMapView} from "./views-world.js";
+
 let lastFitKey = "";
 function allowedModes() {
   const modes = [["simple", "Simple"], ["expert", "Expert"]];
@@ -6,7 +26,7 @@ function allowedModes() {
   if (AUTH.anyAdmin()) modes.push(["admin", "Admin"]);
   return modes;
 }
-function header() {
+export function header() {
   const modes = allowedModes();
   $("#modes").innerHTML = modes.map(([k, n]) => `<button data-act="mode" data-k="${k}" aria-pressed="${UI.mode === k}">${n}</button>`).join("");
   const n = unseenCount(), bell = $("#bell");
@@ -15,7 +35,7 @@ function header() {
   $("#ts").textContent = ["Text: normal", "Text: large", "Text: larger"][ts];
 }
 
-function render() {
+export function render() {
   reindex();
   if (!allowedModes().some(m => m[0] === UI.mode)) UI.mode = "simple";   /* access removed while open */
   const root = $("#app");
@@ -60,7 +80,7 @@ function render() {
   }
   anPage();
 }
-const ALL_FIT = {bounds: [[-3.4, 4.2], [14.7, 13.9]], ll: [5.6, 8.6], z: 4.6};
+export const ALL_FIT = {bounds: [[-3.4, 4.2], [14.7, 13.9]], ll: [5.6, 8.6], z: 4.6};
 function pastLayer(hs, year) {
   const agg = {};
   data("events").filter(e => yearMatch(e, year)).forEach(e => (e.ids || []).forEach(id => {
@@ -119,7 +139,7 @@ document.addEventListener("click", async ev => {
   if (act.startsWith("ct-")) { ev.preventDefault(); return contribAct(act, el); }
   if (ADMIN_ACTS.some(p => act.startsWith(p))) { ev.preventDefault(); return adminAct(act, el); }
   if (act.startsWith("ag-")) { ev.preventDefault(); return agencyAct(act, el); }
-  if (act.startsWith("wa-")) { ev.preventDefault(); return window.WEBAPP?.act(act, el); }
+  if (act.startsWith("wa-")) { ev.preventDefault(); return HOST.web?.act(act, el); }
   switch (act) {
     case "home": UI.mode = "simple"; UI.pickCountry = null; UI.place = null; UI.q = ""; UI.open = {}; go("where"); break;
     case "mode":
@@ -197,7 +217,7 @@ document.addEventListener("click", async ev => {
     case "proj-export": projExport(); break;
     case "live-close": document.querySelectorAll(".livealert").forEach(x => x.remove()); break;
     case "alert-me": if (UI.place) { toggleMine(UI.place); render(); } break;
-    case "unfollow": MY.places = MY.places.filter(k => k !== el.dataset.k); saveMy(); window.WEBAPP?.sync(); render(); break;
+    case "unfollow": MY.places = MY.places.filter(k => k !== el.dataset.k); saveMy(); HOST.web?.sync(); render(); break;
     case "ex-reset": UI.ex = Object.assign(UI.ex, {month: NOW.getMonth(), rain: "auto", mm: 100, tide: "normal", dams: {}, types: {rain: true, river: true, dam: true, coast: true}, minLevel: "low", horizon: "3d"}); render(); break;
     case "ex-focus": { const h = IX.byId[el.dataset.id]; UI.exSel = el.dataset.id; if (h) { mapFly(h.ll, 11.5); } render(); document.getElementById("mapbox")?.scrollIntoView({behavior: "smooth", block: "center"}); break; }
   }
@@ -283,7 +303,7 @@ function drawOverlays() {
   else if (UI.screen === "project") mapProjection(null);
   else if (UI.screen === "map" && UI.show === "past") yearOverlay();
 }
-function afterData() {
+export function afterData() {
   clearTimeout(dataTimer);
   dataTimer = setTimeout(() => {
     syncAgencySubs(); syncContribSub();
@@ -296,7 +316,7 @@ function afterData() {
   }, 120);
 }
 async function startDb() {
-  if (window.WEBAPP) { await window.WEBAPP.start(); DB.synced = DB.settled = true; render(); return; }   /* self-hosted web app: data comes from its server */
+  if (HOST.web) { await HOST.web.start(); DB.synced = DB.settled = true; render(); return; }   /* self-hosted web app: data comes from its server */
   if (!window.claude || typeof window.claude.use !== "function") { DB.synced = DB.settled = true; return; }
   let db = null, user = null, dl = null, room = null;
   try { [db, user, dl, room] = await Promise.all(["db", "user", "downloads", "room"].map(n => claude.use(n).catch(() => null))); } catch (e) {}
@@ -320,6 +340,11 @@ async function startDb() {
   anStart(db, DB.uid);
 }
 
-if (!document.documentElement.lang) document.documentElement.lang = "en";   /* the claude.ai page frame sets none: screen readers need it */
-render();
-startDb();
+/* starts the app once the page is ready; src/app.js (claude.ai) and src/app-web.js (your own domain) call it */
+export function start() {
+  if (!document.documentElement.lang) document.documentElement.lang = "en";   /* the claude.ai page frame sets none: screen readers need it */
+  /* a read-only handle for support and the browser tests: the map, the data connection and the permission-checked writes */
+  Object.defineProperty(window, "OpenTracker", {value: Object.freeze({MAPV, DB, REPO}), enumerable: false});
+  render();
+  startDb();
+}

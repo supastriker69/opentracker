@@ -20,7 +20,9 @@ CSP = ("default-src 'none'; script-src 'unsafe-inline' https://cdnjs.cloudflare.
 SKEL = ('<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover">'
         f'<meta http-equiv="Content-Security-Policy" content="{CSP}"></head><body>' + HTML + '</body></html>')
 ML = {f: (ROOT / "assets" / "vendor" / "maplibre-gl-6.15.0" / f).read_text() for f in ["maplibre-gl.mjs", "maplibre-gl-worker.mjs"]}
-MOCK = "window.__RULES = " + (ROOT / "config" / "db-rules.json").read_text() + ";\n" + (HERE / "mock.js").read_text()
+# the app keeps its code in one sealed scope and offers window.OpenTracker = {MAPV, DB, REPO}; tests use the short names
+HANDLES = "for (const k of ['MAPV', 'DB', 'REPO']) Object.defineProperty(window, k, {get: () => window.OpenTracker && window.OpenTracker[k], configurable: true});\n"
+MOCK = HANDLES + "window.__RULES = " + (ROOT / "config" / "db-rules.json").read_text() + ";\n" + (HERE / "mock.js").read_text()
 ROLES = {
     "owner": {"uid": "u-owner", "owner": True, "edit": True, "level": "owner"},
     "editor": {"uid": "u-ed", "owner": False, "edit": True, "level": "admin"},

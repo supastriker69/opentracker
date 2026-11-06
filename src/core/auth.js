@@ -4,7 +4,9 @@
       data; an agency account can only ever write inside its own agencyData/<its id> area.
    2. Open Tracker roles (below) narrow what each Editor can do in the interface, and decide whose agency posts
       the public sees. Roles are stored in "roles", people in "members" (readable by Editors only). */
-const PERMS = [
+import {data, DB} from "./core.js";
+
+export const PERMS = [
   ["data.edit", "Add and edit flood data (areas, past floods, safe places, roads, feeds, numbers)"],
   ["data.delete", "Delete flood data"],
   ["warnings.manage", "Post, change and remove official warnings"],
@@ -20,7 +22,7 @@ const PERMS = [
   ["backup.manage", "Back up, restore and reset all data"],
   ["agency.publish", "Publish live data for their own agency"]
 ];
-const PERM_KEYS = PERMS.map(p => p[0]);
+export const PERM_KEYS = PERMS.map(p => p[0]);
 const BUILTIN_ROLES = [
   {id: "administrator", n: "Administrator", builtin: true, perms: PERM_KEYS.filter(p => p !== "agency.publish")},
   {id: "data-editor", n: "Data editor", builtin: true, perms: ["data.edit", "data.delete", "warnings.manage", "forecasts.manage", "contributions.review"]},
@@ -31,8 +33,8 @@ const BUILTIN_ROLES = [
 ];
 
 /* roles that act for one agency: only these keep an agency on the person's record */
-const AGENCY_ROLES = ["agency-publisher", "agency-editor"];
-const AUTH = {
+export const AGENCY_ROLES = ["agency-publisher", "agency-editor"];
+export const AUTH = {
   isOwner: false,
   /* role object for the current viewer, or null */
   role() {
@@ -62,13 +64,13 @@ const AUTH = {
     return "";
   }
 };
-function roles() {
+export function roles() {
   const saved = data("roles");
   const byId = Object.fromEntries(saved.map(r => [r.id, r]));
   /* built-in roles always exist; their permissions can't be removed by mistake */
   return BUILTIN_ROLES.map(r => Object.assign({}, r, byId[r.id] ? {n: byId[r.id].n || r.n} : {})).concat(saved.filter(r => !BUILTIN_ROLES.some(b => b.id === r.id)));
 }
-function agencies() { return data("agencies"); }
+export function agencies() { return data("agencies"); }
 /* which collection needs which permission */
 const COLL_PERM = {
   alerts: "warnings.manage", forecasts: "forecasts.manage", dams: "forecasts.manage",
@@ -76,8 +78,8 @@ const COLL_PERM = {
   feeds: "data.edit", contacts: "data.edit", agencies: "agencies.manage", roles: "users.manage", members: "users.manage",
   notifications: "notify.send", changes: "approvals.manage", approvals: "approvals.manage", reviews: "contributions.review", replays: "data.edit"
 };
-function canWrite(coll) { return AUTH.can(COLL_PERM[coll] || "users.manage"); }
-function canDelete(coll) {
+export function canWrite(coll) { return AUTH.can(COLL_PERM[coll] || "users.manage"); }
+export function canDelete(coll) {
   const p = COLL_PERM[coll];
   if (["warnings.manage", "forecasts.manage", "agencies.manage", "users.manage", "notify.send"].includes(p)) return AUTH.can(p);
   return AUTH.can("data.delete");

@@ -5,11 +5,10 @@
    Everything in them is invented for testing; none of it describes real weather or floods. */
 const fs = require("node:fs");
 const path = require("node:path");
-const vm = require("node:vm");
 const {countryDoc, worldDoc} = require("../../lib/feeds/hazards");
 
 const HERE = __dirname;
-const FLOODSIM = vm.runInThisContext(fs.readFileSync(path.join(HERE, "..", "..", "..", "src", "features", "floodsim.js"), "utf8") + "\nFLOODSIM;");
+const {FLOODSIM} = require("../../../src/features/floodsim.js");   /* the browser's own module (Node 22.12+ loads ES modules with require) */
 
 /* ---------- live data ---------- */
 const day = (date, tmax, wetBulb, rain) => ({date, tmax, tmin: tmax - 10, tmean: tmax - 5, feels: tmax + 3, wetBulb, rhMin: 20, rain, rainChance: rain ? 80 : 5, code: rain ? 63 : 1, uv: 11});

@@ -1,9 +1,13 @@
 /* ===== Map: MapLibre with bundled open data (world outlines, rivers, lakes) everywhere, plus — in the public web app —
    OpenStreetMap streets and 3D buildings (OpenFreeMap vector tiles) and 3D ground (Terrarium elevation tiles) ===== */
-const MAPV = {map: null, el: null, ready: false, failed: false, onPick: null, onPickPlace: null, last: null, marker: null, basemap: false, glyphs: false, projBox: null, onReady: null};
-const cssv = v => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+import {LVL_RANK} from "../core/core.js";
+import {HOST} from "../core/host.js";
+import {heatReachKm} from "../features/hazards.js";
+
+export const MAPV = {map: null, el: null, ready: false, failed: false, onPick: null, onPickPlace: null, last: null, marker: null, basemap: false, glyphs: false, projBox: null, onReady: null};
+export const cssv = v => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
 /* street map and ground-height sources: only the web app has them (claude.ai pages can't load outside data) */
-const mapCfg = () => (window.WEBAPP && typeof window.WEBAPP.mapConfig === "function" ? window.WEBAPP.mapConfig() : null);
+export const mapCfg = () => (HOST.web && typeof HOST.web.mapConfig === "function" ? HOST.web.mapConfig() : null);
 const heatColor = lv => cssv("--heat-" + Math.max(0, Math.min(4, lv | 0)));
 const floodColor = lv => cssv(lv === "warning" ? "--flood-warning" : "--flood-watch");
 
@@ -61,7 +65,7 @@ function hexPoly(ll, rkm) {
 function replayColor(kind) {
   return kind === "satellite" ? cssv("--water-sat") : ["match", ["get", "k"], 1, cssv("--water-1"), 2, cssv("--water-2"), 3, cssv("--water-3"), 4, cssv("--water-4"), cssv("--water-2")];
 }
-function mapReplay(fc, kind) {
+export function mapReplay(fc, kind) {
   const m = MAPV.map; if (!m || !MAPV.ready) return;
   MAPV.replayKind = kind;
   m.getSource("replay").setData(fc);
@@ -97,7 +101,7 @@ function paintTheme() {
   if (MAPV.last) mapUpdate(MAPV.last, false);
 }
 
-function mapMount(holder, opts) {
+export function mapMount(holder, opts) {
   if (!holder) return;
   if (!MAPV.el) { MAPV.el = document.createElement("div"); MAPV.el.id = "map-canvas"; MAPV.el.style.cssText = "position:absolute;inset:0"; }
   if (holder !== MAPV.el) holder.replaceWith(MAPV.el);
@@ -164,7 +168,7 @@ function mapMount(holder, opts) {
 }
 /* the map moved into a new screen: match its box now, before any camera move. Resizing stops a moving camera,
    so it is done only when the box really changed (re-drawing the same screen must not stop a fly to a country) */
-function fitToBox() {
+export function fitToBox() {
   const el = MAPV.el, cv = MAPV.map.getCanvas();
   if (!el.clientWidth || !el.clientHeight) return;
   if (Math.abs(el.clientWidth - parseFloat(cv.style.width)) < 1 && Math.abs(el.clientHeight - parseFloat(cv.style.height)) < 1) return;
@@ -172,7 +176,7 @@ function fitToBox() {
 }
 
 /* view: {hot:[{h,r}], past:[{h,n,year}], safe:[], roads:[], dams:[], show:'risk'|..., three, sel, fit} */
-function mapUpdate(view, fit) {
+export function mapUpdate(view, fit) {
   MAPV.last = view;
   const m = MAPV.map; if (!m || !MAPV.ready) return;
   const hot = view.show === "risk" ? view.hot : [];
@@ -206,8 +210,8 @@ function mapUpdate(view, fit) {
     else m.easeTo({center: f.ll, zoom: f.z, pitch, bearing: three ? -12 : 0, duration: reduce ? 0 : 900});
   } else if (!m.isMoving() && m.getPitch() !== pitch) m.easeTo({pitch, bearing: three ? -12 : 0, duration: 500});   /* never cut short a fly already on its way */
 }
-function mapZoom(d) { if (MAPV.map) MAPV.map.zoomTo(MAPV.map.getZoom() + d, {duration: 300}); }
-function mapFly(ll, z) { if (MAPV.map) MAPV.map.easeTo({center: ll, zoom: z, duration: 800}); }
+export function mapZoom(d) { if (MAPV.map) MAPV.map.zoomTo(MAPV.map.getZoom() + d, {duration: 300}); }
+export function mapFly(ll, z) { if (MAPV.map) MAPV.map.easeTo({center: ll, zoom: z, duration: 800}); }
 
 /* ---------- projected reach of heat and floods ---------- */
 /* view.world: {CC: heat level}; view.heatTowns: [{id, ll, level, pop}]; view.floodSigns: [{ll, km, bbox, level, areas}] */
@@ -284,7 +288,7 @@ function mapStreets(view) {
   try { m.setTerrain(want ? {source: "dem", exaggeration: 1.4} : null); } catch (e) { /* older devices: stay flat */ }
 }
 /* the projected water for one hour, laid over the ground; null removes it */
-function mapProjection(url, bbox) {
+export function mapProjection(url, bbox) {
   const m = MAPV.map; if (!m || !MAPV.ready) return;
   if (!url) { if (m.getLayer("projImg")) m.setLayoutProperty("projImg", "visibility", "none"); return; }
   const coordinates = [[bbox[0], bbox[3]], [bbox[2], bbox[3]], [bbox[2], bbox[1]], [bbox[0], bbox[1]]];
@@ -298,7 +302,7 @@ function mapProjection(url, bbox) {
 }
 /* features from the street map's loaded tiles inside a box */
 function inBox(ll, b) { return ll[0] >= b[0] && ll[0] <= b[2] && ll[1] >= b[1] && ll[1] <= b[3]; }
-function mapWaterways(bbox) {
+export function mapWaterways(bbox) {
   const m = MAPV.map; if (!m || !m.getSource("omt")) return [];
   const lines = [];
   for (const f of m.querySourceFeatures("omt", {sourceLayer: "waterway"})) {
@@ -308,7 +312,7 @@ function mapWaterways(bbox) {
   }
   return lines;
 }
-function mapBuildings(bbox) {
+export function mapBuildings(bbox) {
   const m = MAPV.map; if (!m || !m.getSource("omt")) return [];
   const seen = new Set(), out = [];
   for (const f of m.querySourceFeatures("omt", {sourceLayer: "building"})) {

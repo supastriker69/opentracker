@@ -1,6 +1,18 @@
 /* ===== Simple mode: three filters, plain words ===== */
 /* ---------- Simple mode screens ---------- */
-function viewWhere() {
+import {FT} from "../data/data.js";
+import {agencies} from "../core/auth.js";
+import {alertBanners, chip, crumbsFor, data, dataNote, esc, evDate, eventsFor, fmtDate, HORIZONS, icon, ICON, IX, km, LEVELS, LVL_RANK, maxLevel, MONTHS, norm, NOW, placeCenter, placeCountry, placeHot, placeName, rainScenarioFor, riskOf, safeUrl, search, settings, SHOWS, simpleCtx, srcHost, UI} from "../core/core.js";
+import {HOST} from "../core/host.js";
+import {AG, officialReadings, publisherMap, READING_KINDS} from "../features/agency.js";
+import {contributeCta} from "../features/contribute.js";
+import {alertMeHtml} from "../features/notify.js";
+import {monthRange, outlookSettings, reachText} from "../features/outlook.js";
+import {replayPick, replaysFor, yearSliderHtml} from "../features/replay.js";
+import {DETAILED, emergencyNumbers} from "../features/world.js";
+import {countrySelect, liveCardsFor, viewReach, viewWorldPlace} from "./views-world.js";
+
+export function viewWhere() {
   const c = UI.pickCountry;
   let body = "";
   if (!c) {
@@ -43,7 +55,7 @@ function viewWhere() {
     ${body}
     ${c ? "" : contributeCta(null)}`;
 }
-function resultsHtml() {
+export function resultsHtml() {
   if (norm(UI.q).length < 2) return "";
   const r = search(UI.q);
   if (!r.length) return `<p class="muted">No match for “${esc(UI.q)}”. Check the spelling, or choose a country below.</p>`;
@@ -57,7 +69,7 @@ const ADVICE = {
   vhigh: ["If water is rising, move to higher ground or a safe place now.", "Take children, older people and anyone who needs help with you.", "Never walk or drive through moving water.", "Switch off electricity at the main switch before you leave.", "If you are trapped, go to the highest point and call the emergency number below."]
 };
 
-function viewAnswer() {
+export function viewAnswer() {
   const p = UI.place;
   if (!p) { UI.screen = "where"; return viewWhere(); }
   if (p.type === "wc") return viewReach(p.id);         /* any country: its flood and heat reach */
@@ -120,7 +132,7 @@ function viewAnswer() {
     ${contributeCta(p)}
     ${UI.when !== "past" ? dataNote() : ""}`;
 }
-function replaysCard(p) {
+export function replaysCard(p) {
   const list = replaysFor(p);
   return list.length ? `<div class="card"><h2>Watch floods here over time</h2><div class="results">${list.slice(0, 6).map(replayPick).join("")}</div></div>` : "";
 }
@@ -146,13 +158,13 @@ function actionsHtml(lv, p) {
     ${open.todo ? `<div class="card lv-${lv}"><h2>What to do now</h2><ul class="steps">${ADVICE[lv].map(a => `<li>${esc(a)}</li>`).join("")}</ul></div>` : ""}
     ${open.safe ? `<div class="card"><h2>Nearest safe places</h2>${near.length ? `<ul class="plain">${near.map(x => `<li><b>${esc(x.s.n)}</b><br><span class="small muted">About ${x.d < 1 ? "under 1" : Math.round(x.d)} km away · named by ${esc(x.s.src)}</span></li>`).join("")}</ul><p class="small muted">Check with NADMO that a safe place is open before you go.</p>` : `<p>No safe places are listed for this area yet. Call the emergency number below and ask where to go.</p>`}<button class="sbtn" data-act="map-safe">Show safe places on the map</button></div>` : ""}`;
 }
-function emergencyHtml(c) {
+export function emergencyHtml(c) {
   const list = c ? emergencyNumbers(c) : data("contacts");
   if (!list.length) return "";
   return `<div class="card"><h2>Emergency numbers</h2>${list.map(x => `<div class="phone"><span>${esc(x.n)}:</span><span class="n">${esc(x.num)}</span><button class="sbtn" data-act="copy" data-v="${esc(x.num)}">Copy</button></div>`).join("")}<p class="small muted">Call from your phone. Open Tracker cannot place calls.${c && !DETAILED.has(c) ? " Numbers from Google's public phone-number data; check them locally." : ""}</p></div>`;
 }
 
-function viewMap() {
+export function viewMap() {
   const p = UI.place;
   const showSel = `<select id="show" aria-label="Show">${SHOWS.map(s => `<option value="${s.k}" ${UI.show === s.k ? "selected" : ""}>${s.n}</option>`).join("")}</select>`;
   const whenSel = `<select id="when" aria-label="When">${HORIZONS.filter(h => h.k !== "past").map(h => `<option value="${h.k}" ${UI.when === h.k ? "selected" : ""}>${h.n}</option>`).join("")}</select>`;
@@ -173,7 +185,7 @@ function viewMap() {
     <div class="card"><h2>${esc(mapListTitle())}</h2><div class="results">${mapListHtml()}</div></div>
     ${dataNote()}`;
 }
-function yearMatch(e, y) {
+export function yearMatch(e, y) {
   if (y === "all") return true;
   if (y === "unknown") return !e.year;
   if (y === "older") return e.year && e.year < 2022;
@@ -216,7 +228,7 @@ function mapListHtml() {
 }
 
 /* ---------- data status (public) ---------- */
-function feedRow(name, what, status, last) {
+export function feedRow(name, what, status, last) {
   const cls = status === "on" ? "on" : status === "manual" ? "manual" : "off";
   const txt = status === "on" ? "Connected" : status === "manual" ? "Entered by staff" : "Not connected yet";
   return `<div class="feed"><div><b>${esc(name)}</b><br><span class="muted">${esc(what)}</span>${last ? `<br><span class="small muted">Last update ${esc(fmtDate(last))}</span>` : ""}</div><span class="status ${cls}">${txt}</span></div>`;
@@ -224,7 +236,7 @@ function feedRow(name, what, status, last) {
 function readingsHtml(list) {
   return `<ul class="plain">${list.map(r => `<li><b>${esc(r.station)}</b>: <span class="num">${esc(r.value)}</span> ${esc((READING_KINDS.find(k => k[0] === r.kind) || [0, ""])[1])}<br><span class="small muted">${esc(r.agency.n)} · ${esc(fmtDate(r.at))}</span></li>`).join("")}</ul>`;
 }
-function viewStatus() {
+export function viewStatus() {
   const pm = publisherMap();
   const live = new Set(Object.values(pm).map(a => a.id));
   const lastBy = {};
@@ -238,7 +250,7 @@ function viewStatus() {
       <p>When an agency is connected, its warnings, forecasts and readings appear on Open Tracker within seconds, with its name beside them.</p>
       ${agencies().filter(a => a.status !== "suspended").map(a => feedRow(a.n, a.supplies || "", live.has(a.id) ? "on" : "off", lastBy[a.id])).join("")}
     </div>
-    ${window.WEBAPP ? window.WEBAPP.statusHtml() : ""}
+    ${HOST.web ? HOST.web.statusHtml() : ""}
     <div class="card"><h2>Other data feeds</h2>
       ${data("feeds").map(f => feedRow(f.n, f.what + (f.note ? " · " + f.note : ""), f.status, f.last)).join("")}
     </div>

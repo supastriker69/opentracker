@@ -2,7 +2,7 @@
 "use strict";
 const VERSION = "__BUILD__";
 const CACHE = "opentracker-" + VERSION;
-const SHELL = ["/", "/app.css", "/app.js", "/geo.js", "/webapp.js", "/vendor/maplibre-gl.mjs", "/vendor/maplibre-gl-worker.mjs", "/manifest.webmanifest", "/icons/icon-192.png", "/icons/icon-512.png", "/icons/badge-96.png"];
+const SHELL = ["/", "/app.css", "/app.js", "/geo.js", "/vendor/maplibre-gl.mjs", "/vendor/maplibre-gl-worker.mjs", "/manifest.webmanifest", "/icons/icon-192.png", "/icons/icon-512.png", "/icons/badge-96.png"];
 
 self.addEventListener("install", e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)).then(() => self.skipWaiting()));

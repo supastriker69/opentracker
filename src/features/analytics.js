@@ -4,7 +4,16 @@
    A visit is one opening of the page. Pages, searches, feature use and the exit point are merged into
    that visit with debounced update() calls, so two open tabs never overwrite each other.
    Live "online now" uses room presence, which is never stored. Device Do Not Track / GPC is respected. */
-const AN = {
+import {FT} from "../data/data.js";
+import {AUTH} from "../core/auth.js";
+import {$, activeAlerts, DB, esc, IX, LEVELS, maxLevel, norm, placeCountry, placeHot, placeName, riskOf, simpleCtx, toast, UI} from "../core/core.js";
+import {errText, REPO} from "../core/repo.js";
+import {isMine} from "./notify.js";
+import {saveFile} from "../ui/admin/audit.js";
+import {render} from "../ui/main.js";
+import {confirmBox} from "../ui/views-admin.js";
+
+export const AN = {
   on: false, ref: null, sid: null, sess: null, timer: null, busy: false, again: false, dirty: false,
   lastKey: "", qTimer: null, pendingQ: null, room: null, peers: [], peersSub: null,
   rows: null, loading: false, err: false, range: "7", staff: false
@@ -30,7 +39,7 @@ function anWhere() {
   return [s, key, lvl];
 }
 
-async function anStart(db, uid) {
+export async function anStart(db, uid) {
   if (!db || !uid || AN.on || AN_PRIVATE()) return;
   const ref = db.doc("analytics/" + uid);
   let prev = null;
@@ -55,7 +64,7 @@ async function anStart(db, uid) {
   window.addEventListener("pagehide", () => anFlush(true));
   anPage();   /* in case the page changed while the first write was in flight */
 }
-async function anRoom(room) {
+export async function anRoom(room) {
   if (!room || AN_PRIVATE()) return;
   AN.room = room;
   anPresence();
@@ -86,7 +95,7 @@ async function anFlush(final) {
 }
 
 /* called after every render */
-function anPage() {
+export function anPage() {
   const w = anWhere(), key = w.join("|");
   if (key === AN.lastKey) return;
   anPresence();
@@ -110,7 +119,7 @@ function anRecord(w) {
   return true;
 }
 /* searches are recorded once the visitor stops typing */
-function anSearch(q, n) {
+export function anSearch(q, n) {
   if (!AN.on) return;
   clearTimeout(AN.qTimer);
   AN.pendingQ = {q, n};
@@ -140,7 +149,7 @@ function anEvent(name) {
   anDirty();
 }
 const AN_EVENTS = {contribute: "open-contribute", "alert-me": "follow-place", alerts: "open-alerts", "wa-push": "turn-on-push", "wa-install": "install-app", "wa-locate": "use-location", speak: "read-aloud", ts: "text-size", three: "3d", copy: "copy-number", "map-safe": "safe-places", year: "past-year", "to-map": "open-map", "go-status": "data-status"};
-function anClick(act, el) {
+export function anClick(act, el) {
   if (!AN.on) return;
   if (act === "open" && UI.q) anPick();
   let k = AN_EVENTS[act];
@@ -285,7 +294,7 @@ function anLiveHtml() {
     <div class="grid2"><div><h3>What they're looking at</h3>${anBars(sc.top(8), P.length)}</div><div><h3>Places open right now</h3>${anBars(pl.top(8), 0, anPlaceLabel)}</div></div>`;
 }
 
-function adAnalytics() {
+export function adAnalytics() {
   anSubscribePeers();
   if (!AN.rows && !AN.err) { anLoad(); return `<div class="card"><p>Loading analytics…</p></div>`; }
   if (AN.err) return `<div class="card"><p>Analytics could not be loaded.</p><button class="sbtn" data-act="an-reload">Try again</button></div>`;
@@ -350,7 +359,7 @@ function anCsv() {
   })).join("\n");
 }
 /* admin housekeeping; both are recorded in the audit log */
-async function anHousekeep(all) {
+export async function anHousekeep(all) {
   REPO.require(AUTH.can("backup.manage"), "delete analytics");
   const snap = await DB.api.collection("analytics").get();
   const cut = Date.now() - 90 * 864e5;
@@ -367,7 +376,7 @@ async function anHousekeep(all) {
   AN.rows = null;
   toast(`Removed ${removed} visit${removed === 1 ? "" : "s"}.`);
 }
-async function anAct(act) {
+export async function anAct(act) {
   try {
     if (act === "an-reload") { AN.rows = null; AN.err = false; return render(); }
     if (act === "an-export") return saveFile(`opentracker-visits-${new Date().toISOString().slice(0, 10)}.csv`, anCsv(), "text/csv");

@@ -13,11 +13,13 @@ Both run the same application code from `src/`.
 
 ```
 src/
+  app.js                  the entry for the claude.ai page;  app-web.js: the entry for your own domain (adds web/)
   data/data.js            Ghana and Nigeria in depth: regions and states, 88 flood areas, dams, past floods, safe places, agencies
   core/core.js            app state, settings, short-term risk model, places, search, shared helpers
   core/auth.js            permissions and roles
   core/repo.js            every write: permission check, approval gate, audit log
   core/approval.js        approval of agency posts and data changes
+  core/host.js            where the app runs: HOST.web is the web layer on your own domain, absent on claude.ai
   features/agency.js      agency publishing and what the public reads from agencies
   features/notify.js      public notifications and followed places
   features/outlook.js     next rainy season outlook (chance, months to watch, reach)
@@ -29,12 +31,14 @@ src/
   features/terrain.js     ground heights from Terrarium elevation tiles (web app)
   features/projection.js  running and showing a projection for any town; saving it as a replay file
   features/analytics.js   visit analytics and its dashboard
-  ui/                     map, simple, expert, admin and world views (views-world.js), routing (main.js), styles
+  ui/                     map, simple, expert, admin and world views (views-world.js), routing and start-up (main.js), styles
+  ui/admin/               the admin screens' parts: record schema, record forms, model settings, people, audit log
+  web/webapp.js           web app only: install on the home screen, phone push alerts, location, the site's server
 webapp/
   server.js               process start-up, clustering, command line
   lib/                    config, http, api, rules (validation and targeting), push, weather, cli, stores/{file,redis}
   lib/feeds/              data feeds for every country: Open-Meteo, GDACS, official CAP warnings, satellite scenes, heat model
-  client/                 web-app-only files: webapp.js (install, push, location), sw.js, console, icons
+  client/                 web-app-only files: sw.js (offline and push), the push console, icons
 modelling/               SFINCS flood models with HydroMT-SFINCS → hour-by-hour replay files (Accra, Cape Coast, Lagos)
 satellite/               satellite flood outlines (Copernicus EMS/GFM, UNOSAT, Sentinel-1 script, Sentinel-2 for any place) → replay files
 world/                   world tables: 238 countries and territories, 7,300 places, emergency numbers, languages
@@ -43,11 +47,18 @@ maps/                    self-hosted 3D map files (PMTiles): OpenStreetMap stree
 config/db-rules.json      database access rules published with the claude.ai page (and used by the tests)
 tools/build.py            builds both outputs; tools/icons.py draws the app icons
 tests/e2e/                browser scenarios against the claude.ai page with a runtime mock
-tests/web/                browser test of the self-hosted web app
+tests/web/                browser test of the self-hosted web app; modules_test.py loads the unbundled modules
 webapp/test/              server unit and integration tests (file and Redis storage)
 ```
 
-Modules are plain scripts that share one scope, loaded in the order listed in `tools/build.py`. Each module owns one concern and talks to others through a few named functions (`data()`, `settings()`, `computeRisk()`, `REPO.*`, `AUTH.can()`).
+**Modules.** The browser code is ES modules:
+
+- Each file imports by name exactly what it uses and exports only what other files use. Everything else stays private to the file.
+- `tools/build.py` bundles them with esbuild (pinned in `tools/lint/package.json`) into one sealed script per site. Nothing leaks into the page except a frozen, read-only `window.OpenTracker` handle (`MAPV`, `DB`, `REPO`) for support and tests.
+- The claude.ai page is built from `src/app.js`, without the web layer. The self-hosted app is built from `src/app-web.js`.
+- Files never assign to another file's variables. State that several files share lives in objects (`UI`, `DB`, `IX`), which they read and update.
+- No file does work at load that depends on another file having loaded. `tests/web/modules_test.py` proves this by loading the unbundled modules natively in Chromium, where such a mistake throws, unlike in the bundle.
+- ESLint checks every file as a module, so unused code and undefined names are caught per file.
 
 ## Data and permissions (claude.ai page)
 
@@ -91,7 +102,10 @@ these two, also gets live data from the feeds:
   the grid's edges, each transfer capped so depths stay positive. The model accounts for every cubic metre
   (rain + river = stored + outflow + sea, tested), so the volume it reports is exact for its inputs. Depth classes match
   the city SFINCS models. It runs in the browser in slices (about 3 s for 12 hours), shown over OpenFreeMap 3D
-  buildings and Terrarium 3D ground; the buildings in water are counted from the map's own tiles.
+  buildings and Terrarium 3D ground; the buildings in water are counted from the map's own tiles. On every push CI
+  runs it against SFINCS on four test terrains (coast, basin, flat streets, steep gully) with the same ground, rain
+  and roughness: flooded-area agreement (CSI) 0.68–0.92, water volume within 13 %, floods arriving in the same hour.
+  See [VALIDATION.md](VALIDATION.md).
 - **claude.ai page.** It can't reach other sites, so administrators import the web app's live data file
   (Admin → Live data) and saved projections (Admin → Flood replays).
 

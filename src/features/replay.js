@@ -4,6 +4,16 @@
    - satellite: date by date, water outlines mapped from satellites (satellite/ makes the files)
    A replay = a small record in "replays" (titles, times, areas covered) + one map layer per step, kept apart
    in "geo" and loaded only when someone watches. Imported from a replay file, never typed in. */
+import {APPROVAL} from "../core/approval.js";
+import {AUTH, canDelete} from "../core/auth.js";
+import {$, data, DB, esc, IX, NOW, placeCenter, placeHot, safeUrl, toast, UI} from "../core/core.js";
+import {HOST} from "../core/host.js";
+import {errText, REPO} from "../core/repo.js";
+import {fmtVolume} from "./hazards.js";
+import {ALL_FIT, render} from "../ui/main.js";
+import {mapReplay} from "../ui/map.js";
+import {confirmBox} from "../ui/views-admin.js";
+
 const REPLAY_KINDS = {model: "Flood model", satellite: "Satellite map"};
 const REPLAY_MAX_FRAMES = 200, REPLAY_FRAME_BYTES = 200000, REPLAY_MAX_POINTS = 40000;
 const SAT_CLASSES = [{k: 1, n: "Water seen from space"}];
@@ -12,7 +22,7 @@ const RP = {cache: new Map(), timer: null, token: 0};
 /* ---------- reading ---------- */
 function replays() {
   /* the web app gets replays (and their layers) from its own server; claude.ai from the shared database */
-  return (window.WEBAPP ? window.WEBAPP.replays() : data("replays"))
+  return (HOST.web ? HOST.web.replays() : data("replays"))
     .filter(r => r && Array.isArray(r.frames) && r.frames.length)
     .sort((a, b) => String(b.frames[0].t).localeCompare(String(a.frames[0].t)));
 }
@@ -20,7 +30,7 @@ function replayById(id) { return replays().find(r => r.id === id) || null; }
 const replayYear = r => +String(r.frames[0].t).slice(0, 4);
 function inBbox(ll, b) { return ll[0] >= b[0] && ll[0] <= b[2] && ll[1] >= b[1] && ll[1] <= b[3]; }
 /* replays that cover a place: by region/state, or by a flood area inside the replay's box */
-function replaysFor(p) {
+export function replaysFor(p) {
   const hs = placeHot(p);
   const regs = new Set(p.type === "area" ? [p.id] : hs.map(h => h.r));
   const pts = hs.length ? hs.map(h => h.ll) : p.type === "wp" ? [placeCenter(p).ll] : [];   /* towns anywhere: by position */
@@ -30,7 +40,7 @@ async function loadFrame(r, i) {
   const f = r.frames[i]; if (!f) return null;
   if (RP.cache.has(f.geo)) return RP.cache.get(f.geo);
   let fc = null;
-  if (window.WEBAPP) fc = await window.WEBAPP.geo(f.geo);
+  if (HOST.web) fc = await HOST.web.geo(f.geo);
   else if (DB.api) { const s = await DB.api.collection("geo").doc(f.geo).get(); fc = s.exists ? s.data().fc : null; }
   if (fc) RP.cache.set(f.geo, fc);
   return fc;
@@ -184,7 +194,7 @@ async function addOutline(form) {
     bbox: bboxOfFc(fc), source: v("#ro-source").slice(0, 200) || "Satellite flood map", notes: "", link: src, assumptions: [], classes: SAT_CLASSES, frameMinutes: null, made: new Date().toISOString().slice(0, 10), madeWith: ""}, [frame]);
 }
 async function deleteGeo(frames) { for (const f of frames || []) await DB.api.collection("geo").doc(f.geo).delete().catch(() => {}); }
-async function deleteReplay(id) {
+export async function deleteReplay(id) {
   const r = data("replays").find(x => x.id === id); if (!r) return;
   await REPO.del("replays", id);
   await deleteGeo(r.frames);
@@ -192,12 +202,12 @@ async function deleteReplay(id) {
 }
 
 /* ---------- public screens ---------- */
-function replayPick(r) {
+export function replayPick(r) {
   const peak = Math.max(...r.frames.map(f => f.km2));
   const span = r.kind === "model" ? `${r.frames.length - 1} hours` : `${r.frames.length} satellite map${r.frames.length > 1 ? "s" : ""}`;
   return `<button class="pick" data-act="replay-open" data-id="${esc(r.id)}"><span class="grow"><span class="t">${esc(r.title)}</span><span class="s">${esc(REPLAY_KINDS[r.kind])} · ${esc(frameWhen(r, 0).split(" · ").pop())} · ${span} · up to ${peak} km² under water</span></span><span class="chip">Watch</span></button>`;
 }
-function viewReplays() {
+export function viewReplays() {
   if (UI.replay.id && replayById(UI.replay.id)) return viewReplayPlayer(replayById(UI.replay.id));
   const all = replays(), sats = all.filter(r => r.kind === "satellite"), models = all.filter(r => r.kind === "model");
   return `<button class="back" data-act="back">← Back</button>
@@ -250,7 +260,7 @@ function sparkline(r, i) {
 }
 
 /* ---------- playing ---------- */
-async function replayShow(i) {
+export async function replayShow(i) {
   const r = replayById(UI.replay.id); if (!r) return;
   UI.replay.i = Math.max(0, Math.min(r.frames.length - 1, i));
   const token = ++RP.token;
@@ -262,11 +272,11 @@ async function replayShow(i) {
   const sp = $("#rp-spark"); if (sp) sp.innerHTML = sparkline(r, UI.replay.i);
   loadFrame(r, UI.replay.i + 1).catch(() => {});   /* fetch the next step early */
 }
-function replayStop() {
+export function replayStop() {
   clearInterval(RP.timer); RP.timer = null;
   const b = $("#rp-play"); if (b) { b.textContent = "▶ Play"; b.setAttribute("aria-pressed", "false"); }
 }
-function replayToggle() {
+export function replayToggle() {
   if (RP.timer) return replayStop();
   const r = replayById(UI.replay.id); if (!r) return;
   if (UI.replay.i >= r.frames.length - 1) UI.replay.i = 0;
@@ -279,7 +289,7 @@ function replayToggle() {
   const b = $("#rp-play"); if (b) { b.textContent = "❚❚ Pause"; b.setAttribute("aria-pressed", "true"); }
   replayShow(UI.replay.i);
 }
-function replayMapView() {
+export function replayMapView() {
   const r = replayById(UI.replay.id);
   const b = r ? r.bbox : ALL_FIT.bounds.flat();
   return {show: "replay", three: false, hot: [], past: [], safe: [], roads: [], dams: [], sel: null, reach: [], fit: {bounds: [[b[0], b[1]], [b[2], b[3]]], maxZoom: 15}};
@@ -287,13 +297,13 @@ function replayMapView() {
 
 /* ---------- recorded floods year by year ---------- */
 const YEARS = {timer: null};
-function yearRange() {
+export function yearRange() {
   const ys = data("events").concat(data("regionEvents")).map(e => e.year).filter(Boolean).concat(replays().map(replayYear));
   if (!ys.length) return [];
   const lo = Math.max(Math.min(...ys), NOW.getFullYear() - 24), hi = NOW.getFullYear();
   return Array.from({length: hi - lo + 1}, (_, k) => lo + k);
 }
-function yearSliderHtml() {
+export function yearSliderHtml() {
   const ys = yearRange(); if (!ys.length) return "";
   const cur = /^\d{4}$/.test(UI.year) ? +UI.year : null;
   const idx = cur ? Math.max(0, ys.indexOf(cur)) : ys.length - 1;
@@ -308,8 +318,8 @@ function yearSliderHtml() {
     ${sat.length ? `<p class="small">Satellite maps from ${cur}: ${sat.map(r => `<button class="linkbtn" data-act="replay-open" data-id="${esc(r.id)}">${esc(r.title)}</button>`).join(", ")}</p>` : ""}
   </div>`;
 }
-function yearsStop() { clearInterval(YEARS.timer); YEARS.timer = null; }
-function yearsToggle() {
+export function yearsStop() { clearInterval(YEARS.timer); YEARS.timer = null; }
+export function yearsToggle() {
   if (YEARS.timer) { yearsStop(); return render(); }
   const ys = yearRange(); if (!ys.length) return;
   let k = /^\d{4}$/.test(UI.year) ? ys.indexOf(+UI.year) : -1;
@@ -324,7 +334,7 @@ function yearsToggle() {
   step();
 }
 /* the largest satellite outline of the chosen year, drawn under the past-flood markers */
-async function yearOverlay() {
+export async function yearOverlay() {
   const y = /^\d{4}$/.test(UI.year) ? +UI.year : null;
   const sats = y ? replays().filter(r => r.kind === "satellite" && replayYear(r) === y) : [];
   const fcs = [];
@@ -337,7 +347,7 @@ async function yearOverlay() {
 }
 
 /* ---------- admin: Flood replays ---------- */
-function adReplays() {
+export function adReplays() {
   const list = data("replays").slice().sort((a, b) => String(b.frames[0]?.t).localeCompare(String(a.frames[0]?.t)));
   const sats = list.filter(r => r.kind === "satellite");
   return `<div class="card"><h2>Flood replays</h2>
@@ -364,11 +374,11 @@ function adReplays() {
     <p class="small" id="ro-err" role="alert" style="color:var(--vhigh)"></p>
     <div class="toolbar"><button class="sbtn primary" type="submit">Add outline</button></div></form>`;
 }
-async function replayImportFile(file) {
+export async function replayImportFile(file) {
   try { const v = await importReplayFile(file); toast(`Imported “${v.meta.title}” with ${v.frames.length} steps.`); render(); }
   catch (e) { toast(e instanceof SyntaxError ? "That isn't an Open Tracker replay file." : errText(e)); }
 }
-async function replayOutlineSubmit(form) {
+export async function replayOutlineSubmit(form) {
   const err = form.querySelector("#ro-err");
   try { await addOutline(form); toast("Outline added."); render(); }
   catch (e) { if (err) err.textContent = errText(e); }

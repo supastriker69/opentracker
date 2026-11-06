@@ -15,14 +15,22 @@ const common = {
 };
 
 export default [
-  {   // the browser app: every module is plain script sharing one scope, checked as one bundle (dist/app.check.js)
-    files: ["dist/app.check.js"],
-    languageOptions: {ecmaVersion: 2022, sourceType: "script", globals: {...globals.browser, claude: "readonly"}},
-    rules: {...common, "no-unused-vars": ["error", {vars: "local", args: "none", caughtErrors: "none"}],
-      "no-fallthrough": "warn", eqeqeq: ["warn", "smart"], "no-cond-assign": "warn", "no-constant-condition": "warn"},
+  {   // the browser app: ES modules, bundled by tools/build.py. The page supplies GEO, WORLD and MAPLIB_URL;
+      // claude.ai supplies window.claude (the web app's layer, src/web/, provides the same on your own domain).
+    files: ["src/**/*.js"],
+    languageOptions: {ecmaVersion: 2022, sourceType: "module",
+      globals: {...globals.browser, claude: "readonly", GEO: "readonly", WORLD: "readonly", MAPLIB_URL: "readonly"}},
+    rules: {...common, eqeqeq: ["warn", "smart"], "no-fallthrough": "warn", "no-cond-assign": "warn", "no-constant-condition": "warn",
+      "no-restricted-syntax": ["error", {selector: "ImportExpression[source.type='Literal']", message: "Load the app's own code through import statements, so the bundle holds all of it."},
+        {selector: "ExportDefaultDeclaration", message: "Use named exports, so every import says what it takes."}]},
+  },
+  {   // FLOODSIM against SFINCS: runs the browser's flood model under Node
+    files: ["modelling/*.mjs"],
+    languageOptions: {ecmaVersion: 2022, sourceType: "module", globals: {...globals.node}},
+    rules: {...common, eqeqeq: ["error", "smart"]},
   },
   {   // the server, its command line and its tests
-    files: ["webapp/server.js", "webapp/lib/**/*.js", "webapp/test/**/*.js"],
+    files: ["webapp/server.js", "webapp/lib/**/*.js", "webapp/test/**/*.js", "webapp/load/**/*.js"],
     languageOptions: {ecmaVersion: 2022, sourceType: "commonjs", globals: {...globals.node}},
     rules: {...common, eqeqeq: ["error", "smart"]},
   },

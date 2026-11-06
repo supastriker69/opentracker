@@ -1,23 +1,28 @@
 /* ===== Open Tracker app core: data store, forecast model, search, Simple mode ===== */
-const $ = (s, el = document) => el.querySelector(s);
-const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
-const clone = o => JSON.parse(JSON.stringify(o));
-const MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
-const LEVELS = [
+import {FT} from "../data/data.js";
+import {damState, officialAlerts, officialForecasts, publisherMap} from "../features/agency.js";
+import {OUTLOOK_CACHE, outlookFor} from "../features/outlook.js";
+import {countryFit, countryName, countryPlace, worldPlace, worldSearchEntries} from "../features/world.js";
+
+export const $ = (s, el = document) => el.querySelector(s);
+export const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+export const clone = o => JSON.parse(JSON.stringify(o));
+export const MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+export const LEVELS = [
   {k:"low", n:"Low", word:"Low risk"},
   {k:"med", n:"Medium", word:"Medium risk"},
   {k:"high", n:"High", word:"High risk"},
   {k:"vhigh", n:"Very high", word:"Very high risk"}
 ];
-const HORIZONS = [
+export const HORIZONS = [
   {k:"today", n:"Today"}, {k:"3d", n:"Next 3 days"}, {k:"season", n:"Next 3 months"}, {k:"year", n:"Next rainy season"}, {k:"past", n:"Past floods"}
 ];
-const SHOWS = [
+export const SHOWS = [
   {k:"risk", n:"Flood risk"}, {k:"safe", n:"Safe places"}, {k:"past", n:"Past floods"}, {k:"roads", n:"Roads to avoid"}
 ];
 
 /* ---------- icons (shape + colour, so colour is never the only cue) ---------- */
-const ICON = {
+export const ICON = {
   low: '<svg class="ic" width="SZ" height="SZ" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10" fill="currentColor"/><path d="M7 12.5l3.2 3.2L17 9" stroke="#fff" stroke-width="2.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>',
   med: '<svg class="ic" width="SZ" height="SZ" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.5L22.5 21h-21z" fill="currentColor"/><path d="M12 9v5" stroke="#fff" stroke-width="2.6" stroke-linecap="round"/><circle cx="12" cy="17.6" r="1.5" fill="#fff"/></svg>',
   high: '<svg class="ic" width="SZ" height="SZ" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 1.5L22.5 12 12 22.5 1.5 12z" fill="currentColor"/><path d="M12 7.5v6" stroke="#fff" stroke-width="2.6" stroke-linecap="round"/><circle cx="12" cy="16.8" r="1.5" fill="#fff"/></svg>',
@@ -27,11 +32,11 @@ const ICON = {
   info: '<svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 11v6" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/><circle cx="12" cy="7.5" r="1.4" fill="currentColor"/></svg>'
 };
 ICON.bell = '<svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a6 6 0 0 0-6 6v4l-2 3h16l-2-3V9a6 6 0 0 0-6-6z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M10 19a2 2 0 0 0 4 0" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>';
-const icon = (k, sz = 22) => (ICON[k] || ICON.none).replaceAll("SZ", sz);
-const chip = (lv, txt) => `<span class="chip lv-${lv}">${icon(lv, 16)}${esc(txt ?? (LEVELS.find(l => l.k === lv)?.n || "Not enough data"))}</span>`;
+export const icon = (k, sz = 22) => (ICON[k] || ICON.none).replaceAll("SZ", sz);
+export const chip = (lv, txt) => `<span class="chip lv-${lv}">${icon(lv, 16)}${esc(txt ?? (LEVELS.find(l => l.k === lv)?.n || "Not enough data"))}</span>`;
 
 /* ---------- data store: built-in dataset, replaced by the shared database when it has been set up ---------- */
-const DEFAULT_SETTINGS = {
+export const DEFAULT_SETTINGS = {
   wE: .5, wV: .5, wH: .5, tail: .7,
   cut: {med: .12, high: .30, vhigh: .55},
   freshHours: 36,
@@ -39,7 +44,7 @@ const DEFAULT_SETTINGS = {
   notice: "",
   approval: {on: true, agencies: {}}   /* agency changes wait for an administrator unless turned off */
 };
-const BUILT = {
+export const BUILT = {
   hotspots: FT.hotspots.map(clone),
   events: FT.events.map(clone),
   regionEvents: FT.regionEvents.map((e, i) => Object.assign({id: "re" + (i + 1)}, clone(e))),
@@ -60,18 +65,18 @@ const BUILT = {
   replays: []
 };
 /* data collections editors manage; "members" is readable by editors only (database rule) */
-const COLLS = ["hotspots","events","regionEvents","safe","roads","dams","feeds","contacts","alerts","forecasts","agencies","roles","members","notifications","changes","approvals","reviews","replays"];
-const DB = {api: null, user: null, cfg: null, cols: {}, canEdit: false, uid: null, downloads: null, synced: false, settled: false};
+export const COLLS = ["hotspots","events","regionEvents","safe","roads","dams","feeds","contacts","alerts","forecasts","agencies","roles","members","notifications","changes","approvals","reviews","replays"];
+export const DB = {api: null, user: null, cfg: null, cols: {}, canEdit: false, uid: null, downloads: null, synced: false, settled: false};
 
-function data(key) {
+export function data(key) {
   if (DB.cfg) return DB.cols[key] || [];
   return BUILT[key];
 }
-function settings() { return Object.assign(clone(DEFAULT_SETTINGS), DB.cfg ? DB.cfg : {}); }
+export function settings() { return Object.assign(clone(DEFAULT_SETTINGS), DB.cfg ? DB.cfg : {}); }
 
 /* indexes rebuilt on every data change */
-let IX = {};
-function reindex() {
+export let IX = {};
+export function reindex() {
   const hot = data("hotspots");
   const byId = {}; hot.forEach(h => byId[h.id] = h);
   const evByHot = {};
@@ -83,7 +88,7 @@ function reindex() {
 }
 
 /* ---------- forecast model ---------- */
-function rainScenarioFor(zone) {
+export function rainScenarioFor(zone) {
   /* admin-entered forecast for a zone, if fresh */
   const st = settings();
   const fresh = f => { const age = (Date.now() - Date.parse(f.at)) / 36e5; return age >= -1 && age <= (st.freshHours || 36); };
@@ -91,7 +96,7 @@ function rainScenarioFor(zone) {
     .sort((a, b) => (a.model ? 1 : 0) - (b.model ? 1 : 0) || String(b.at).localeCompare(String(a.at)));   /* official first, then newest */
   return list[0] || null;
 }
-function pDay(M, T1, tail) {
+export function pDay(M, T1, tail) {
   if (!(M > 0)) return 0;
   const mu = M / 30, f = Math.min(.7, M / 150), m = mu / f;
   return f * Math.exp(-Math.pow(T1 / m, tail));
@@ -99,7 +104,7 @@ function pDay(M, T1, tail) {
 const logistic = x => 1 / (1 + Math.exp(-x));
 
 /* ctx: {month, horizon, rain:'auto'|'mm', mm, tide:'normal'|'spring', dams:{id:status}} */
-function computeRisk(h, ctx) {
+export function computeRisk(h, ctx) {
   if (ctx.horizon === "year") return outlookFor(h);   /* the coming rainy season has its own model */
   const st = settings();
   const m = ctx.month;
@@ -176,11 +181,11 @@ function computeRisk(h, ctx) {
   const level = score >= c.vhigh ? "vhigh" : score >= c.high ? "high" : score >= c.med ? "med" : "low";
   return {P, Prain, Pdam, Priver, E, V, H: Hh, score, level, causes, nEvents: evs.length};
 }
-const LVL_RANK = {low: 0, med: 1, high: 2, vhigh: 3};
-function maxLevel(rs) { return rs.reduce((a, r) => LVL_RANK[r.level] > LVL_RANK[a] ? r.level : a, "low"); }
+export const LVL_RANK = {low: 0, med: 1, high: 2, vhigh: 3};
+export function maxLevel(rs) { return rs.reduce((a, r) => LVL_RANK[r.level] > LVL_RANK[a] ? r.level : a, "low"); }
 
 /* ---------- places ---------- */
-function placeHot(p) {
+export function placeHot(p) {
   if (!p) return [];
   if (p.type === "hotspot") return IX.byId[p.id] ? [IX.byId[p.id]] : [];
   if (p.type === "area") return IX.hot.filter(h => h.r === p.id);
@@ -188,7 +193,7 @@ function placeHot(p) {
   if (p.type === "water") { const w = FT.waters[p.idx]; return (w?.ids || []).map(id => IX.byId[id]).filter(Boolean); }
   return [];   /* towns and countries outside Ghana and Nigeria have no recorded hotspots yet */
 }
-function placeName(p) {
+export function placeName(p) {
   if (!p) return "";
   if (p.type === "hotspot") return IX.byId[p.id]?.n || "Unknown area";
   if (p.type === "area") { const a = IX.areaById[p.id]; return a ? `${a.n} ${a.c === "GH" ? "Region" : a.id === "NG-FC" ? "" : "State"}`.trim() : ""; }
@@ -198,7 +203,7 @@ function placeName(p) {
   if (p.type === "wp") return worldPlace(p.id)?.n || "";
   return "";
 }
-function placeCountry(p) {
+export function placeCountry(p) {
   if (!p) return null;
   if (p.type === "country") return p.id;
   if (p.type === "area") return IX.areaById[p.id]?.c;
@@ -208,7 +213,7 @@ function placeCountry(p) {
   if (p.type === "wp") return worldPlace(p.id)?.c || null;
   return null;
 }
-function crumbsFor(p) {
+export function crumbsFor(p) {
   const out = [];
   if (!p) return out;
   const c = placeCountry(p);
@@ -217,7 +222,7 @@ function crumbsFor(p) {
   if (p.type !== "country") out.push({p, n: placeName(p)});
   return out;
 }
-function placeCenter(p) {
+export function placeCenter(p) {
   if (p.type === "wc") return countryFit(p.id);
   if (p.type === "wp") { const w = worldPlace(p.id); return w ? {ll: w.ll, z: 11} : {ll: [0, 15], z: 1.6}; }
   const hs = placeHot(p);
@@ -235,12 +240,12 @@ function fitOf(pts, fallbackZ) {
   const xs = pts.map(p => p[0]), ys = pts.map(p => p[1]);
   return {bounds: [[Math.min(...xs), Math.min(...ys)], [Math.max(...xs), Math.max(...ys)]], ll: [(Math.min(...xs) + Math.max(...xs)) / 2, (Math.min(...ys) + Math.max(...ys)) / 2], z: fallbackZ};
 }
-function km(a, b) {
+export function km(a, b) {
   const R = 6371, t = Math.PI / 180, dLat = (b[1] - a[1]) * t, dLon = (b[0] - a[0]) * t;
   const s = Math.sin(dLat / 2) ** 2 + Math.cos(a[1] * t) * Math.cos(b[1] * t) * Math.sin(dLon / 2) ** 2;
   return 2 * R * Math.asin(Math.sqrt(s));
 }
-function eventsFor(p) {
+export function eventsFor(p) {
   const ids = new Set(placeHot(p).map(h => h.id));
   const evs = data("events").filter(e => (e.ids || []).some(id => ids.has(id)));
   let regs = [];
@@ -251,7 +256,7 @@ function eventsFor(p) {
 
 /* ---------- search ---------- */
 let SEARCH = [], WORLD_SEARCH = null;
-const norm = s => String(s || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9 ]+/g, " ").replace(/\s+/g, " ").trim();
+export const norm = s => String(s || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9 ]+/g, " ").replace(/\s+/g, " ").trim();
 function buildSearch() {
   SEARCH = [];
   Object.entries(FT.countries).forEach(([id, c]) => SEARCH.push({p: {type: "country", id}, t: c.n, s: "Country", keys: [c.n, id === "GH" ? "gh" : "ng"]}));
@@ -270,7 +275,7 @@ function lev(a, b) {
     d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
   return d[a.length][b.length];
 }
-function search(q) {
+export function search(q) {
   const n = norm(q);
   if (n.length < 2) return [];
   const out = [];
@@ -292,8 +297,8 @@ function search(q) {
 }
 
 /* ---------- UI state ---------- */
-const NOW = new Date();
-const UI = {
+export const NOW = new Date();
+export const UI = {
   mode: "simple", screen: "where", pickCountry: null, place: null, when: "3d", show: "risk", year: "all",
   q: "", open: {}, three: false,
   ex: {month: NOW.getMonth(), rain: "auto", mm: 100, tide: "normal", dams: {}, country: "ALL", area: "", types: {rain: true, river: true, dam: true, coast: true}, minLevel: "low", horizon: "3d", year: "all"},
@@ -304,42 +309,42 @@ const UI = {
 };
 try { const ts = localStorage.getItem("ft-ts"); if (ts) document.documentElement.classList.add("ts-" + ts); } catch (e) {}
 
-function simpleCtx(horizon) {
+export function simpleCtx(horizon) {
   return {month: NOW.getMonth(), horizon: horizon || UI.when, rain: "auto", tide: "normal", dams: {}};
 }
-function riskOf(h, ctx) { return computeRisk(h, ctx || simpleCtx()); }
+export function riskOf(h, ctx) { return computeRisk(h, ctx || simpleCtx()); }
 
 /* ---------- rendering helpers ---------- */
-function toast(msg) {
+export function toast(msg) {
   document.querySelectorAll(".toast").forEach(x => x.remove());   /* one message at a time */
   const t = document.createElement("div");
   t.className = "toast"; t.setAttribute("role", "status"); t.textContent = msg;
   document.body.appendChild(t);
   setTimeout(() => t.remove(), 3200);
 }
-function activeAlerts(country, areaId) {
+export function activeAlerts(country, areaId) {
   const now = Date.now();
   return officialAlerts().filter(a => (!a.expires || Date.parse(a.expires) > now) && (!country || a.c === country || a.c === "ALL") && (!areaId || !a.areas || !a.areas.length || a.areas.includes(areaId)));
 }
-function alertBanners(p) {
+export function alertBanners(p) {
   const c = placeCountry(p);
   const areaId = p?.type === "area" ? p.id : p?.type === "hotspot" ? IX.byId[p.id]?.r : null;
   return activeAlerts(c, areaId).map(a => `<div class="notice ${a.level === "warning" ? "alert" : a.level === "watch" ? "" : "info"}" role="alert">${a.level === "info" ? ICON.info : ICON.warn}<div><b>${esc(a.level === "warning" ? "Official flood warning" : a.level === "watch" ? "Official flood watch" : "Official notice")} · ${esc(a.agency || "")}</b>${esc(a.msg)}<div class="small muted">${a.issued ? "Issued " + esc(fmtDate(a.issued)) : ""}${a.expires ? " · until " + esc(fmtDate(a.expires)) : ""}</div></div></div>`).join("");
 }
 /* only http(s) links are ever rendered */
-function safeUrl(u) { return /^https?:\/\/[^\s"'<>]+$/i.test(String(u || "")) ? String(u) : ""; }
-function fmtDate(s) {
+export function safeUrl(u) { return /^https?:\/\/[^\s"'<>]+$/i.test(String(u || "")) ? String(u) : ""; }
+export function fmtDate(s) {
   const d = new Date(s); if (isNaN(d)) return s;
   return d.toLocaleString("en-GB", {day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit"});
 }
-function evDate(e) {
+export function evDate(e) {
   if (!e.year) return "Year not confirmed";
   if (/^\d{4}-\d{2}-\d{2}$/.test(e.date)) return new Date(e.date + "T12:00:00").toLocaleDateString("en-GB", {day: "numeric", month: "long", year: "numeric"});
   if (/^\d{4}-\d{2}$/.test(e.date)) return MONTHS[+e.date.slice(5) - 1] + " " + e.year;
   return String(e.year);
 }
-function srcHost(u) { try { return new URL(u).hostname.replace(/^www\./, ""); } catch (e) { return "source"; } }
-function dataNote() {
+export function srcHost(u) { try { return new URL(u).hostname.replace(/^www\./, ""); } catch (e) { return "source"; } }
+export function dataNote() {
   const anyFc = Object.keys(settings().climate).some(z => rainScenarioFor(z));
   const live = data("feeds").some(f => f.status === "on") || Object.keys(publisherMap()).length > 0;
   const head = live ? "Some official data is connected" : "Official live data is not connected yet";

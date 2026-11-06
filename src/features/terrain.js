@@ -2,7 +2,7 @@
    Terrarium elevation tiles (AWS Terrain Tiles: SRTM, Copernicus/EU-DEM, 3DEP and others; heights in metres coded
    in the red, green and blue of each pixel). Read in the public web app only: claude.ai pages cannot load data
    from other sites. Zoom 13 gives about 19 m pixels at the equator, resampled to the model's grid. */
-const TERRAIN = (() => {
+export const TERRAIN = (() => {
   const Z = 13, SIZE = 256, KEEP = 64;
   const cache = new Map();   /* "x/y" -> Promise<Float32Array> */
 

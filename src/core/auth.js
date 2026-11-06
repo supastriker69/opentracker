@@ -30,6 +30,8 @@ const BUILTIN_ROLES = [
   {id: "agency-publisher", n: "Agency publisher", builtin: true, perms: ["agency.publish"]}
 ];
 
+/* roles that act for one agency: only these keep an agency on the person's record */
+const AGENCY_ROLES = ["agency-publisher", "agency-editor"];
 const AUTH = {
   isOwner: false,
   /* role object for the current viewer, or null */

@@ -48,6 +48,7 @@ const REPO = {
     const before = data("members").find(m => m.id === uid) || null;
     const body = Object.assign({}, before ? clone(before) : {addedBy: DB.uid || null, addedAt: new Date().toISOString(), active: true}, patch);
     delete body.id;
+    if (!AGENCY_ROLES.includes(body.role)) body.agency = null;   /* only agency roles act for an agency (and publish for it) */
     await DB.api.collection("members").doc(uid).set(body);
     await REPO.audit(before ? "changed access" : "added person", "members", uid, before, Object.assign({id: uid}, body));
     await REPO.syncPublisher(uid, body.active !== false && body.agency ? body.agency : null);

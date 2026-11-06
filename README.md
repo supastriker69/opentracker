@@ -14,16 +14,26 @@
 
 ## Build and test
 
+Every push runs all of this on GitHub (the Checks workflow), including a real Docker Compose deploy.
+
 ```bash
-tools/check.sh                               # build, lint everything, run the server tests
-python3 tools/build.py                       # builds dist/opentracker.html and dist/opentracker-webapp/
+tools/check.sh                               # build, lint everything (ESLint, ruff), run the server tests
+python3 tools/build.py                       # builds dist/opentracker.html, dist/opentracker-webapp/ and release/
 cd webapp && npm ci && npm test              # server tests (add TEST_REDIS_URL=redis://… to test Redis too)
-python3 tests/e2e/run.py s1.py               # browser scenarios s1–s7 (Playwright and Chromium)
-python3 tests/web/webapp_test.py admin.key agency.key   # web app against a running server
-SFINCS_BIN=/path/to/sfincs python -m pytest modelling/tests satellite/tests   # flood model and satellite tools
+python3 tests/e2e/run.py                     # nine browser scenarios on the claude.ai page (Playwright and Chromium)
+python3 tests/web/webapp_test.py             # the web app: starts its own server (run npm ci in dist/opentracker-webapp first)
+sh tests/ops/backup_restore_test.sh          # back up, lose and restore a real Redis
+sh tests/ops/deploy_test.sh                  # deploy, automatic rollback and manual rollback
+SFINCS_BIN=/path/to/sfincs python -m pytest modelling/tests satellite/tests world/tests   # Python tools
 ```
 
+Browser checks wait for the page instead of sleeping, and every printed value of the old tests is now an assertion.
+
 ## Deploy the public web app
+
+`release/opentracker-webapp` is the built web app. Copy it to a server, fill in `env.example` as `.env.production`,
+and run `ops/deploy.sh production`. [docs/RUNBOOK.md](docs/RUNBOOK.md) covers deploying, staging, rollback, backups,
+monitoring and incidents.
 
 Flood model runs: [modelling/README.md](modelling/README.md). Satellite flood maps: [satellite/README.md](satellite/README.md). See [webapp/README.md](webapp/README.md) for setup, and [docs/SCALING.md](docs/SCALING.md) for running at very large scale. How the code fits together is in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 

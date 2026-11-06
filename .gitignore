@@ -19,3 +19,6 @@ __pycache__/
 .ruff_cache/
 *.tmp
 .coverage
+tests/e2e/out/
+tests/web/out/
+.deploy/

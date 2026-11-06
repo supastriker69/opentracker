@@ -1,19 +1,97 @@
-# Every push: build, lint and run the server tests (file and Redis storage).
+# Every push and pull request: build, lint, every test suite, and a real container deploy.
+# Merge to main only when all jobs are green (docs/RUNBOOK.md → Releases on GitHub).
 name: Checks
 on: [push, pull_request]
+permissions: {contents: read}
+concurrency: {group: "checks-${{ github.ref }}", cancel-in-progress: true}
+
 jobs:
-  checks:
+  server:
+    name: Build, lint and server tests (Node.js ${{ matrix.node }})
     runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy: {matrix: {node: ["22", "24"]}}
     services:
-      redis: {image: "redis:7-alpine", ports: ["6379:6379"]}
+      redis: {image: "redis:7.4.12-alpine", ports: ["6379:6379"]}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
-        with: {node-version: "20"}
+        with: {node-version: "${{ matrix.node }}"}
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.12"}
+      - run: pip install ruff==0.16.8
       - run: cd webapp && npm ci
       - run: sh tools/check.sh
         env: {TEST_REDIS_URL: "redis://127.0.0.1:6379/15"}
+      - name: The committed release folder matches the source
+        run: |
+          git diff --exit-code -- release/ || { echo "release/ is out of date; run python3 tools/build.py and commit it"; exit 1; }
+
+  python:
+    name: Python tests (modelling, satellite, world)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with: {python-version: "3.12"}
-      - run: pip install -r modelling/requirements.txt pytest
+      - run: pip install -r modelling/requirements.txt -r satellite/requirements.txt pytest
       - run: python -m pytest modelling/tests satellite/tests world/tests -q
+
+  browser:
+    name: Browser tests (claude.ai page and web app)
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: "24"}
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.12"}
+      - run: pip install playwright==1.56.0 numpy==2.3.4 pillow==12.0.0
+      - run: python -m playwright install --with-deps chromium
+      - run: python3 tools/build.py
+      - run: cd dist/opentracker-webapp && npm ci
+      - name: Nine scenarios on the claude.ai page
+        run: python3 tests/e2e/run.py
+      - name: The web app, its console and the 3D projection
+        run: python3 tests/web/webapp_test.py
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with: {name: browser-test-screens, path: "tests/*/out/"}
+
+  ops:
+    name: Backups, restore and deploy scripts
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y redis-server shellcheck
+      - run: shellcheck -s sh webapp/ops/*.sh tests/ops/*.sh tools/check.sh
+      - run: sh tests/ops/backup_restore_test.sh
+      - run: sh tests/ops/deploy_test.sh
+
+  container:
+    name: Real deploy with Docker Compose (staging settings, local domain)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    needs: [server]
+    defaults: {run: {working-directory: release/opentracker-webapp}}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Settings for a local staging deploy
+        run: |
+          sed -e 's/^SITE_DOMAIN=.*/SITE_DOMAIN=localhost/' -e 's/^VAPID_SUBJECT=.*/VAPID_SUBJECT=mailto:ci@example.org/' \
+              -e 's/^ALERT_NAME=.*/ALERT_NAME=Open Tracker CI/' -e 's/^FEEDS_OFF=.*/FEEDS_OFF=all/' env.example > .env.staging
+          docker compose -p opentracker-staging --env-file .env.staging config --quiet
+      - name: Deploy (build, start, smoke test)
+        run: SMOKE_INSECURE=1 sh ops/deploy.sh staging
+      - name: A backup from the running service
+        run: |
+          docker compose -p opentracker-staging --env-file .env.staging exec -T backup sh /ops/backup-redis.sh
+          ls -l backups/ && test -n "$(ls backups/opentracker-*.rdb.gz)"
+      - name: Status
+        run: SMOKE_INSECURE=1 sh ops/deploy.sh staging status
+      - name: Logs on failure
+        if: failure()
+        run: docker compose -p opentracker-staging --env-file .env.staging logs --tail 200

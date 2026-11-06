@@ -446,7 +446,7 @@ const BUILT = {
 };
 /* data collections editors manage; "members" is readable by editors only (database rule) */
 const COLLS = ["hotspots","events","regionEvents","safe","roads","dams","feeds","contacts","alerts","forecasts","agencies","roles","members","notifications","changes","approvals","reviews","replays"];
-const DB = {api: null, user: null, cfg: null, cols: {}, canEdit: false, uid: null, downloads: null};
+const DB = {api: null, user: null, cfg: null, cols: {}, canEdit: false, uid: null, downloads: null, synced: false, settled: false};
 
 function data(key) {
   if (DB.cfg) return DB.cols[key] || [];
@@ -768,6 +768,8 @@ const BUILTIN_ROLES = [
   {id: "agency-publisher", n: "Agency publisher", builtin: true, perms: ["agency.publish"]}
 ];
 
+/* roles that act for one agency: only these keep an agency on the person's record */
+const AGENCY_ROLES = ["agency-publisher", "agency-editor"];
 const AUTH = {
   isOwner: false,
   /* role object for the current viewer, or null */
@@ -981,7 +983,7 @@ async function agencySubmit(form) {
     if (form.id === "ag-request") {
       await DB.api.doc(`agencyData/${DB.uid}`).set({request: {agency: v("#ag-req-agency"), note: v("#ag-req-note").trim().slice(0, 200), at: new Date().toISOString()}});
       toast("Request sent.");
-      return;
+      return render();
     }
     const a = AUTH.agency(); if (!a) throw new Error("Your account isn't linked to an agency.");
     const t = form.dataset.type;
@@ -2654,6 +2656,7 @@ const REPO = {
     const before = data("members").find(m => m.id === uid) || null;
     const body = Object.assign({}, before ? clone(before) : {addedBy: DB.uid || null, addedAt: new Date().toISOString(), active: true}, patch);
     delete body.id;
+    if (!AGENCY_ROLES.includes(body.role)) body.agency = null;   /* only agency roles act for an agency (and publish for it) */
     await DB.api.collection("members").doc(uid).set(body);
     await REPO.audit(before ? "changed access" : "added person", "members", uid, before, Object.assign({id: uid}, body));
     await REPO.syncPublisher(uid, body.active !== false && body.agency ? body.agency : null);
@@ -2736,7 +2739,7 @@ function errText(e) {
 /* ---- ui/map.js ---- */
 /* ===== Map: MapLibre with bundled open data (world outlines, rivers, lakes) everywhere, plus — in the public web app —
    OpenStreetMap streets and 3D buildings (OpenFreeMap vector tiles) and 3D ground (Terrarium elevation tiles) ===== */
-const MAPV = {map: null, el: null, ready: false, failed: false, onPick: null, onPickPlace: null, last: null, marker: null, basemap: false, glyphs: false, projBox: null};
+const MAPV = {map: null, el: null, ready: false, failed: false, onPick: null, onPickPlace: null, last: null, marker: null, basemap: false, glyphs: false, projBox: null, onReady: null};
 const cssv = v => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
 /* street map and ground-height sources: only the web app has them (claude.ai pages can't load outside data) */
 const mapCfg = () => (window.WEBAPP && typeof window.WEBAPP.mapConfig === "function" ? window.WEBAPP.mapConfig() : null);
@@ -2891,6 +2894,7 @@ function mapMount(holder, opts) {
       });
       MAPV.ready = true;
       if (MAPV.last) mapUpdate(MAPV.last, true);
+      if (MAPV.onReady) MAPV.onReady();
     });
   } else fitToBox();
 }
@@ -3801,7 +3805,6 @@ function readModel(form) {
 }
 
 /* ----- people ----- */
-const AGENCY_ROLES = ["agency-publisher", "agency-editor"];
 function roleOpts(sel) { return roles().map(r => `<option value="${esc(r.id)}" ${r.id === sel ? "selected" : ""}>${esc(r.n)}</option>`).join(""); }
 function agencyOpts(sel) { return `<option value="">—</option>` + agencies().map(a => `<option value="${esc(a.id)}" ${a.id === sel ? "selected" : ""}>${esc(a.n)}</option>`).join(""); }
 function adPeople() {
@@ -4028,7 +4031,7 @@ async function adminAct(act, el) {
 async function adminSubmit(form) {
   const err = form.querySelector("#ad-err");
   try {
-    if (form.id === "ad-model") { await REPO.setSettings(readModel(form)); toast("Model settings saved."); return; }
+    if (form.id === "ad-model") { await REPO.setSettings(readModel(form)); toast("Model settings saved."); return render(); }
     if (form.id === "ad-role") {
       const rec = UI.admin.edit.rec;
       const n = form.querySelector("#r-n").value.trim();
@@ -4881,10 +4884,8 @@ function render() {
     const key = UI.mode + UI.screen + JSON.stringify(UI.mode === "expert" ? [UI.ex.country, UI.ex.area] : replaying ? UI.replay.id : reachCc || UI.place);
     mapUpdate(view, key !== lastFitKey || !MAPV.ready);
     lastFitKey = key;
-    if (replaying) replayShow(UI.replay.i);
-    else if (simple && UI.screen === "project" && PROJ.result) projShow(PROJ.hour);   /* the page was redrawn: lay the water back on */
-    else if (simple && UI.screen === "project") mapProjection(null);
-    else if (simple && UI.screen === "map" && UI.show === "past") yearOverlay();
+    MAPV.onReady = drawOverlays;   /* a map still loading draws them when it is ready */
+    drawOverlays();
   }
   anPage();
 }
@@ -5090,21 +5091,42 @@ function speak() {
 
 /* shared database: editors' changes reach every signed-in viewer live */
 let dataTimer = null;
+/* a form on the page holds something the person typed or chose and has not sent yet */
+function formDirty() {
+  for (const el of document.querySelectorAll("#app form input, #app form textarea, #app form select")) {
+    if (el.type === "checkbox" || el.type === "radio") { if (el.checked !== el.defaultChecked) return true; }
+    else if (el.tagName === "SELECT") {
+      const opts = [...el.options];
+      if (el.multiple) { if (opts.some(o => o.selected !== o.defaultSelected)) return true; }
+      else if (opts.length && el.selectedIndex !== Math.max(0, opts.findIndex(o => o.defaultSelected))) return true;   /* no preset choice: the first one */
+    }
+    else if (el.type !== "file" && el.value !== el.defaultValue) return true;
+  }
+  return false;
+}
+/* the water a screen lays over the map: a replay step, a projection hour or past years */
+function drawOverlays() {
+  if (UI.mode !== "simple") return;
+  if (UI.screen === "replays" && UI.replay) replayShow(UI.replay.i);
+  else if (UI.screen === "project" && PROJ.result) projShow(PROJ.hour);   /* the page was redrawn: lay the water back on */
+  else if (UI.screen === "project") mapProjection(null);
+  else if (UI.screen === "map" && UI.show === "past") yearOverlay();
+}
 function afterData() {
   clearTimeout(dataTimer);
   dataTimer = setTimeout(() => {
     syncAgencySubs(); syncContribSub();
     const a = document.activeElement;
-    /* never redraw under someone who is typing; their next action redraws with the new data */
+    /* never redraw under someone who is typing or filling in a form; their next action redraws with the new data */
     const editing = a && a.matches?.("textarea, input:not([type=checkbox]):not([type=radio]):not([type=file]):not([type=range])");
-    if (editing || (UI.mode === "admin" && UI.admin.edit)) { reindex(); header(); checkNewNotices(); return; }
-    render();
-    checkNewNotices();
+    if (editing || formDirty() || (UI.mode === "admin" && UI.admin.edit)) { reindex(); header(); checkNewNotices(); }
+    else { render(); checkNewNotices(); }
+    if (DB.synced) DB.settled = true;   /* the page now shows every subscription's first answer */
   }, 120);
 }
 async function startDb() {
-  if (window.WEBAPP) { await window.WEBAPP.start(); render(); return; }   /* self-hosted web app: data comes from its server */
-  if (!window.claude || typeof window.claude.use !== "function") return;
+  if (window.WEBAPP) { await window.WEBAPP.start(); DB.synced = DB.settled = true; render(); return; }   /* self-hosted web app: data comes from its server */
+  if (!window.claude || typeof window.claude.use !== "function") { DB.synced = DB.settled = true; return; }
   let db = null, user = null, dl = null, room = null;
   try { [db, user, dl, room] = await Promise.all(["db", "user", "downloads", "room"].map(n => claude.use(n).catch(() => null))); } catch (e) {}
   DB.user = user; DB.downloads = dl;
@@ -5113,11 +5135,14 @@ async function startDb() {
     try { DB.uid = await user.id(); } catch (e) {}
     try { AUTH.isOwner = !!(await user.isOwner()); } catch (e) {}
   }
-  if (!db) { render(); return; }
+  if (!db) { DB.synced = DB.settled = true; render(); return; }
   DB.api = db;
-  db.doc("config/settings").onSnapshot(s => { DB.cfg = s.exists ? s.data() : null; afterData(); }, () => {});
+  /* DB.synced turns true once every subscription has answered once (with data or a refusal) */
+  const waiting = new Set(["config/settings", ...COLLS]);
+  const answered = k => { if (waiting.delete(k) && !waiting.size) { DB.synced = true; afterData(); } };
+  db.doc("config/settings").onSnapshot(s => { DB.cfg = s.exists ? s.data() : null; answered("config/settings"); afterData(); }, () => answered("config/settings"));
   /* "members" is readable by Editors only; for everyone else that subscription simply errors and stays empty */
-  COLLS.forEach(k => db.collection(k).onSnapshot(s => { DB.cols[k] = s.docs.map(d => Object.assign({}, d.data(), {id: d.id})); afterData(); }, () => {}));
+  COLLS.forEach(k => db.collection(k).onSnapshot(s => { DB.cols[k] = s.docs.map(d => Object.assign({}, d.data(), {id: d.id})); answered(k); afterData(); }, () => answered(k)));
   syncAgencySubs(); syncContribSub();
   render();
   anRoom(room);

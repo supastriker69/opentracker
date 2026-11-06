@@ -159,7 +159,7 @@ async function agencySubmit(form) {
     if (form.id === "ag-request") {
       await DB.api.doc(`agencyData/${DB.uid}`).set({request: {agency: v("#ag-req-agency"), note: v("#ag-req-note").trim().slice(0, 200), at: new Date().toISOString()}});
       toast("Request sent.");
-      return;
+      return render();
     }
     const a = AUTH.agency(); if (!a) throw new Error("Your account isn't linked to an agency.");
     const t = form.dataset.type;

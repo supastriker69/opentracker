@@ -61,7 +61,7 @@ const BUILT = {
 };
 /* data collections editors manage; "members" is readable by editors only (database rule) */
 const COLLS = ["hotspots","events","regionEvents","safe","roads","dams","feeds","contacts","alerts","forecasts","agencies","roles","members","notifications","changes","approvals","reviews","replays"];
-const DB = {api: null, user: null, cfg: null, cols: {}, canEdit: false, uid: null, downloads: null};
+const DB = {api: null, user: null, cfg: null, cols: {}, canEdit: false, uid: null, downloads: null, synced: false, settled: false};
 
 function data(key) {
   if (DB.cfg) return DB.cols[key] || [];

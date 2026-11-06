@@ -1,6 +1,6 @@
 /* ===== Map: MapLibre with bundled open data (world outlines, rivers, lakes) everywhere, plus — in the public web app —
    OpenStreetMap streets and 3D buildings (OpenFreeMap vector tiles) and 3D ground (Terrarium elevation tiles) ===== */
-const MAPV = {map: null, el: null, ready: false, failed: false, onPick: null, onPickPlace: null, last: null, marker: null, basemap: false, glyphs: false, projBox: null};
+const MAPV = {map: null, el: null, ready: false, failed: false, onPick: null, onPickPlace: null, last: null, marker: null, basemap: false, glyphs: false, projBox: null, onReady: null};
 const cssv = v => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
 /* street map and ground-height sources: only the web app has them (claude.ai pages can't load outside data) */
 const mapCfg = () => (window.WEBAPP && typeof window.WEBAPP.mapConfig === "function" ? window.WEBAPP.mapConfig() : null);
@@ -155,6 +155,7 @@ function mapMount(holder, opts) {
       });
       MAPV.ready = true;
       if (MAPV.last) mapUpdate(MAPV.last, true);
+      if (MAPV.onReady) MAPV.onReady();
     });
   } else fitToBox();
 }

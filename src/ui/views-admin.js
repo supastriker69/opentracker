@@ -400,7 +400,6 @@ function readModel(form) {
 }
 
 /* ----- people ----- */
-const AGENCY_ROLES = ["agency-publisher", "agency-editor"];
 function roleOpts(sel) { return roles().map(r => `<option value="${esc(r.id)}" ${r.id === sel ? "selected" : ""}>${esc(r.n)}</option>`).join(""); }
 function agencyOpts(sel) { return `<option value="">—</option>` + agencies().map(a => `<option value="${esc(a.id)}" ${a.id === sel ? "selected" : ""}>${esc(a.n)}</option>`).join(""); }
 function adPeople() {
@@ -627,7 +626,7 @@ async function adminAct(act, el) {
 async function adminSubmit(form) {
   const err = form.querySelector("#ad-err");
   try {
-    if (form.id === "ad-model") { await REPO.setSettings(readModel(form)); toast("Model settings saved."); return; }
+    if (form.id === "ad-model") { await REPO.setSettings(readModel(form)); toast("Model settings saved."); return render(); }
     if (form.id === "ad-role") {
       const rec = UI.admin.edit.rec;
       const n = form.querySelector("#r-n").value.trim();

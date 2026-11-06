@@ -55,10 +55,8 @@ function render() {
     const key = UI.mode + UI.screen + JSON.stringify(UI.mode === "expert" ? [UI.ex.country, UI.ex.area] : replaying ? UI.replay.id : reachCc || UI.place);
     mapUpdate(view, key !== lastFitKey || !MAPV.ready);
     lastFitKey = key;
-    if (replaying) replayShow(UI.replay.i);
-    else if (simple && UI.screen === "project" && PROJ.result) projShow(PROJ.hour);   /* the page was redrawn: lay the water back on */
-    else if (simple && UI.screen === "project") mapProjection(null);
-    else if (simple && UI.screen === "map" && UI.show === "past") yearOverlay();
+    MAPV.onReady = drawOverlays;   /* a map still loading draws them when it is ready */
+    drawOverlays();
   }
   anPage();
 }
@@ -264,21 +262,42 @@ function speak() {
 
 /* shared database: editors' changes reach every signed-in viewer live */
 let dataTimer = null;
+/* a form on the page holds something the person typed or chose and has not sent yet */
+function formDirty() {
+  for (const el of document.querySelectorAll("#app form input, #app form textarea, #app form select")) {
+    if (el.type === "checkbox" || el.type === "radio") { if (el.checked !== el.defaultChecked) return true; }
+    else if (el.tagName === "SELECT") {
+      const opts = [...el.options];
+      if (el.multiple) { if (opts.some(o => o.selected !== o.defaultSelected)) return true; }
+      else if (opts.length && el.selectedIndex !== Math.max(0, opts.findIndex(o => o.defaultSelected))) return true;   /* no preset choice: the first one */
+    }
+    else if (el.type !== "file" && el.value !== el.defaultValue) return true;
+  }
+  return false;
+}
+/* the water a screen lays over the map: a replay step, a projection hour or past years */
+function drawOverlays() {
+  if (UI.mode !== "simple") return;
+  if (UI.screen === "replays" && UI.replay) replayShow(UI.replay.i);
+  else if (UI.screen === "project" && PROJ.result) projShow(PROJ.hour);   /* the page was redrawn: lay the water back on */
+  else if (UI.screen === "project") mapProjection(null);
+  else if (UI.screen === "map" && UI.show === "past") yearOverlay();
+}
 function afterData() {
   clearTimeout(dataTimer);
   dataTimer = setTimeout(() => {
     syncAgencySubs(); syncContribSub();
     const a = document.activeElement;
-    /* never redraw under someone who is typing; their next action redraws with the new data */
+    /* never redraw under someone who is typing or filling in a form; their next action redraws with the new data */
     const editing = a && a.matches?.("textarea, input:not([type=checkbox]):not([type=radio]):not([type=file]):not([type=range])");
-    if (editing || (UI.mode === "admin" && UI.admin.edit)) { reindex(); header(); checkNewNotices(); return; }
-    render();
-    checkNewNotices();
+    if (editing || formDirty() || (UI.mode === "admin" && UI.admin.edit)) { reindex(); header(); checkNewNotices(); }
+    else { render(); checkNewNotices(); }
+    if (DB.synced) DB.settled = true;   /* the page now shows every subscription's first answer */
   }, 120);
 }
 async function startDb() {
-  if (window.WEBAPP) { await window.WEBAPP.start(); render(); return; }   /* self-hosted web app: data comes from its server */
-  if (!window.claude || typeof window.claude.use !== "function") return;
+  if (window.WEBAPP) { await window.WEBAPP.start(); DB.synced = DB.settled = true; render(); return; }   /* self-hosted web app: data comes from its server */
+  if (!window.claude || typeof window.claude.use !== "function") { DB.synced = DB.settled = true; return; }
   let db = null, user = null, dl = null, room = null;
   try { [db, user, dl, room] = await Promise.all(["db", "user", "downloads", "room"].map(n => claude.use(n).catch(() => null))); } catch (e) {}
   DB.user = user; DB.downloads = dl;
@@ -287,11 +306,14 @@ async function startDb() {
     try { DB.uid = await user.id(); } catch (e) {}
     try { AUTH.isOwner = !!(await user.isOwner()); } catch (e) {}
   }
-  if (!db) { render(); return; }
+  if (!db) { DB.synced = DB.settled = true; render(); return; }
   DB.api = db;
-  db.doc("config/settings").onSnapshot(s => { DB.cfg = s.exists ? s.data() : null; afterData(); }, () => {});
+  /* DB.synced turns true once every subscription has answered once (with data or a refusal) */
+  const waiting = new Set(["config/settings", ...COLLS]);
+  const answered = k => { if (waiting.delete(k) && !waiting.size) { DB.synced = true; afterData(); } };
+  db.doc("config/settings").onSnapshot(s => { DB.cfg = s.exists ? s.data() : null; answered("config/settings"); afterData(); }, () => answered("config/settings"));
   /* "members" is readable by Editors only; for everyone else that subscription simply errors and stays empty */
-  COLLS.forEach(k => db.collection(k).onSnapshot(s => { DB.cols[k] = s.docs.map(d => Object.assign({}, d.data(), {id: d.id})); afterData(); }, () => {}));
+  COLLS.forEach(k => db.collection(k).onSnapshot(s => { DB.cols[k] = s.docs.map(d => Object.assign({}, d.data(), {id: d.id})); answered(k); afterData(); }, () => answered(k)));
   syncAgencySubs(); syncContribSub();
   render();
   anRoom(room);

@@ -1,11 +1,11 @@
 {
   "name": "opentracker-webapp",
   "version": "1.0.0",
-  "description": "Open Tracker (Flood Tracker): open-source flood tracking web app with location-based alerts for Ghana and Nigeria.",
+  "description": "Open Tracker (Flood Tracker): open-source flood and heat tracking for every country, with 3D flood projections and location-based alerts.",
   "private": true,
   "main": "server.js",
   "engines": {
-    "node": ">=20"
+    "node": ">=22"
   },
   "scripts": {
     "start": "node server.js",
@@ -13,7 +13,7 @@
   },
   "dependencies": {
     "fast-xml-parser": "5.11.2",
-    "redis": "4.7.0",
+    "redis": "6.3.1",
     "web-push": "3.6.7"
   },
   "license": "Apache-2.0"

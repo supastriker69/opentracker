@@ -1,5 +1,6 @@
 # Open Tracker web app: one image for web servers (ROLE=web) and notification senders (ROLE=push).
-FROM node:20-alpine
+# Node.js 24 LTS (supported until April 2028), pinned to an exact release so every build is the same
+FROM node:24.22.2-alpine3.24
 ENV NODE_ENV=production HOST=0.0.0.0 PORT=8080
 WORKDIR /app
 COPY package.json package-lock.json ./

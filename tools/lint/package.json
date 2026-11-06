@@ -1,0 +1,10 @@
+{
+  "name": "opentracker-lint",
+  "private": true,
+  "description": "Lint tools for Open Tracker (run by tools/check.sh and CI)",
+  "license": "Apache-2.0",
+  "devDependencies": {
+    "eslint": "10.13.0",
+    "globals": "17.13.0"
+  }
+}

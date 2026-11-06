@@ -6,7 +6,7 @@ ROOT = pathlib.Path(__file__).resolve().parents[2]
 HERE = pathlib.Path(__file__).resolve().parent
 HTML = (ROOT / "dist" / "opentracker.html").read_text()
 SKEL = '<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"></head><body>' + HTML + '</body></html>'
-ML = (ROOT / "assets" / "vendor" / "maplibre-gl-4.7.1.js").read_text()
+ML = {f: (ROOT / "assets" / "vendor" / "maplibre-gl-6.15.0" / f).read_text() for f in ["maplibre-gl.mjs", "maplibre-gl-worker.mjs"]}
 MOCK = "window.__RULES = " + (ROOT / "config" / "db-rules.json").read_text() + ";\n" + (HERE / "mock.js").read_text()
 ROLES = {
  "owner": {"uid":"u-owner","owner":True,"edit":True,"level":"owner"},
@@ -19,7 +19,8 @@ errors = []
 def route(r):
     u = r.request.url
     if u.startswith("http://ft.test/"): return r.fulfill(status=200, content_type="text/html", body=SKEL)
-    if "maplibre-gl" in u: return r.fulfill(status=200, content_type="application/javascript", body=ML)
+    if "cdn.jsdelivr.net/npm/maplibre-gl@" in u:   # the CDN copy, served from the vendored files
+        return r.fulfill(status=200, content_type="text/javascript", body=ML[u.split("?")[0].rsplit("/", 1)[1]], headers={"Access-Control-Allow-Origin": "*"})
     return r.fulfill(status=200, body="")
 def step(name): print("--", name, flush=True)
 with sync_playwright() as p:

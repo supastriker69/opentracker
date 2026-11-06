@@ -36,6 +36,9 @@ MODULES = [
     "core/approval.js",      # approval of agency changes
     "ui/main.js",            # routing, events, start-up
 ]
+MAPLIB_VERSION = "6.15.0"   # MapLibre GL JS: vendored for the web app, from jsDelivr (npm mirror) for the claude.ai page
+MAPLIB_DIR = ASSETS / "vendor" / f"maplibre-gl-{MAPLIB_VERSION}"
+MAPLIB_CDN = f"https://cdn.jsdelivr.net/npm/maplibre-gl@{MAPLIB_VERSION}/dist/maplibre-gl.mjs"
 GEO_LAYERS = ["countries", "adminlines", "rivers", "lakes"]
 FONTS = "https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&display=swap"
 LOGO = ('<svg width="30" height="30" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="8" fill="var(--accent)"/>'
@@ -94,9 +97,9 @@ def build_artifact(js, geo, css):
 {css}
 </style>
 {HEADER}
-<script src="https://cdnjs.cloudflare.com/ajax/libs/maplibre-gl/4.7.1/maplibre-gl.min.js"></script>
 <script>
 "use strict";
+const MAPLIB_URL = "{MAPLIB_CDN}";
 {geo}
 {js}
 </script>
@@ -111,11 +114,12 @@ def build_webapp(js, geo, css, version):
     shutil.copytree(WEB, out, ignore=shutil.ignore_patterns("node_modules", ".data", "client", "test", "*.tmp"))
     (pub / "vendor").mkdir(parents=True)
     shutil.copytree(WEB / "client" / "icons", pub / "icons")
-    shutil.copy(ASSETS / "vendor" / "maplibre-gl-4.7.1.js", pub / "vendor" / "maplibre-gl.js")
+    for f in ["maplibre-gl.mjs", "maplibre-gl-worker.mjs", "LICENSE.txt"]:   # MapLibre loads its worker from beside itself
+        shutil.copy(MAPLIB_DIR / f, pub / "vendor" / f)
     for f in ["webapp.js", "console.js", "console.html"]:
         shutil.copy(WEB / "client" / f, pub / f)
     (pub / "sw.js").write_text(read(WEB / "client" / "sw.js").replace("__BUILD__", version), encoding="utf-8")
-    (pub / "app.js").write_text('"use strict";\n' + js, encoding="utf-8")
+    (pub / "app.js").write_text('"use strict";\nconst MAPLIB_URL = "/vendor/maplibre-gl.mjs";\n' + js, encoding="utf-8")
     (pub / "geo.js").write_text('"use strict";\n' + geo, encoding="utf-8")
     (pub / "app.css").write_text(BASE_RESET + css, encoding="utf-8")
     (pub / "robots.txt").write_text("User-agent: *\nDisallow: /console.html\nDisallow: /api/\n", encoding="utf-8")
@@ -151,7 +155,6 @@ def build_webapp(js, geo, css, version):
 </head>
 <body>
 {HEADER}
-<script src="/vendor/maplibre-gl.js"></script>
 <script src="/geo.js?v={version}"></script>
 <script src="/webapp.js?v={version}"></script>
 <script src="/app.js?v={version}"></script>
@@ -194,7 +197,7 @@ def main():
     version = hashlib.sha256("".join([js, css] + [read(WEB / "client" / f) for f in ("webapp.js", "sw.js", "console.js", "console.html")]).encode()).hexdigest()[:10]
     html = build_artifact(js, geo, css)
     out = build_webapp(js, geo, css, version)
-    (DIST / "app.check.js").write_text('"use strict";\nconst GEO = {};\nconst WORLD = {countries: {}, places: []};\n' + read(WEB / "client" / "webapp.js") + "\n" + js, encoding="utf-8")
+    (DIST / "app.check.js").write_text('"use strict";\nconst GEO = {};\nconst WORLD = {countries: {}, places: []};\nconst MAPLIB_URL = "";\n' + read(WEB / "client" / "webapp.js") + "\n" + js, encoding="utf-8")
     print(f"dist/opentracker.html  {len(html) / 1024:.0f} KB")
     print(f"dist/opentracker-webapp/  version {version}  ({sum(f.stat().st_size for f in out.rglob('*') if f.is_file()) / 1024:.0f} KB)")
 

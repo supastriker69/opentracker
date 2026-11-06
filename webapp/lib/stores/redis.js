@@ -29,7 +29,8 @@ class RedisStore {
     await this.blocking.connect();
     return this;
   }
-  async close() { await Promise.allSettled([this.r.quit(), this.blocking.quit()]); }
+  /* the main connection finishes commands already sent; the queue connection is only waiting for work, so it stops at once */
+  async close() { this.blocking.destroy(); await this.r.close().catch(() => {}); }
   async ping() { return (await this.r.ping()) === "PONG"; }
 
   async vapid() {

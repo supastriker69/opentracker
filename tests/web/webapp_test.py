@@ -88,6 +88,17 @@ def http_get(url, token=None):
         return e.code, e.read().decode()
 
 
+def http_post(url, body):
+    """status of a JSON POST made from outside the browser (expected refusals stay out of the page's console)"""
+    import urllib.request, urllib.error
+    req = urllib.request.Request(url, data=json.dumps(body).encode(), headers={"Content-Type": "application/json"}, method="POST")
+    try:
+        with urllib.request.urlopen(req, timeout=10) as r:
+            return r.status
+    except urllib.error.HTTPError as e:
+        return e.code
+
+
 # ---------- checks ----------
 def eq(actual, expected, what):
     checks["n"] += 1
@@ -216,6 +227,15 @@ def run(base, keys):
             c.reload()   # the administrator stays signed in for this browser session
             see("Open Tracker team", "#who", c)
             see("Add Hausa and Twi", "#contribs", c)
+
+            step("hostile text from the public stays text in the console and the app")
+            P = '<img src=x onerror="window.__xss=1">"\'><svg onload="window.__xss=1"></svg>'
+            eq(http_post(base + "/api/contribute", {"type": "report", "text": "Flood " + P, "src": "javascript:window.__xss=1"}), 400, "a script link is refused")
+            eq(api("/api/contribute", body={"type": "report", "text": "Flood " + P, "placeText": P, "src": "https://example.org/x"})["status"], 202, "hostile text is accepted as text")
+            c.reload(); see("Flood <img src=x", "#contribs", c)
+            for pg, where in [(c, "the console"), (page, "the app")]:
+                eq(pg.evaluate("""() => ({ran: window.__xss || 0, tags: document.querySelectorAll('img[src="x"], svg[onload], [onerror], [onload]').length,
+                    links: [...document.querySelectorAll('[href]')].filter(e => /^\\s*javascript:/i.test(e.getAttribute('href'))).length})"""), {"ran": 0, "tags": 0, "links": 0}, f"nothing injected in {where}")
             page.click(".brand"); page.click("[data-act=outlook]")
             see("2027 rainy season outlook", "h1")
 

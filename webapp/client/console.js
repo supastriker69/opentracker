@@ -4,6 +4,7 @@
 (() => {
   const $ = s => document.querySelector(s);
   const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"}[c]));
+  const safeUrl = u => (/^https?:\/\/[^\s"'<>]+$/i.test(String(u || "")) ? String(u) : "");   /* only web links, whatever the data says */
   const S = {key: "", me: null, areas: [], sent: [], approval: true, autoHeat: false};
   try { S.key = sessionStorage.getItem("ftc-key") || ""; } catch (e) {}
 
@@ -114,7 +115,7 @@
       const r = await api("/api/contributions");
       const f = $("#c-filter").value;
       $("#contribs").innerHTML = r.contributions.filter(c => !f || c.status === f).map(c => `<tr><td class="num small">${esc(fmt(c.at))}</td><td>${esc(CTYPES[c.type] || c.type)}${c.category ? `<br><span class="small muted">${esc(c.category)}</span>` : ""}</td>
-        <td>${esc(c.text)}<br><span class="small muted">${[c.placeText, c.place ? c.place.type + ": " + c.place.id : "", c.date, c.depth ? "water to the " + c.depth : "", c.ll ? c.ll.join(", ") : ""].filter(Boolean).map(esc).join(" · ")}</span>${c.src ? `<br><a class="small" href="${esc(c.src)}" target="_blank" rel="noopener noreferrer">Source</a>` : ""}</td>
+        <td>${esc(c.text)}<br><span class="small muted">${[c.placeText, c.place ? c.place.type + ": " + c.place.id : "", c.date, c.depth ? "water to the " + c.depth : "", c.ll ? c.ll.join(", ") : ""].filter(Boolean).map(esc).join(" · ")}</span>${safeUrl(c.src) ? `<br><a class="small" href="${esc(safeUrl(c.src))}" target="_blank" rel="noopener noreferrer">Source</a>` : ""}</td>
         <td>${esc(c.status)}${c.note ? `<br><span class="small muted">${esc(c.note)}</span>` : ""}</td>
         <td style="white-space:nowrap"><button class="sbtn primary" data-contrib="accepted" data-id="${esc(c.id)}">Accept</button> <button class="sbtn danger" data-contrib="rejected" data-id="${esc(c.id)}">Reject</button></td></tr>`).join("") || `<tr><td colspan="5">Nothing here.</td></tr>`;
     } catch (e) { say($("#c-msg"), e.message); }
@@ -148,7 +149,7 @@
   async function loadFeeds() {
     try {
       const r = await api("/api/sources/admin");
-      $("#feeds").innerHTML = r.sources.map(s => `<tr><td><a href="${esc(s.link)}" target="_blank" rel="noopener noreferrer">${esc(s.name)}</a><br><span class="small muted">${esc(s.gives)} · ${esc(s.licence)}</span></td>
+      $("#feeds").innerHTML = r.sources.map(s => `<tr><td><a href="${esc(safeUrl(s.link))}" target="_blank" rel="noopener noreferrer">${esc(s.name)}</a><br><span class="small muted">${esc(s.gives)} · ${esc(s.licence)}</span></td>
         <td class="${s.status === "failing" ? "err" : ""}">${esc(STATUS[s.status] || s.status)}${s.failures ? `<br><span class="small">${s.failures} failed tries</span>` : ""}</td>
         <td class="small">${s.lastOk ? esc(fmt(s.lastOk)) : "—"}${s.nextRun ? `<br><span class="muted">next ${esc(fmt(s.nextRun))}</span>` : ""}</td>
         <td class="small">${esc(summaryText(s.summary))}${s.error ? `<br><span class="err">${esc(s.error)}</span>` : ""}${(s.warnings || []).map(w => `<br><span class="muted">${esc(w)}</span>`).join("")}</td>

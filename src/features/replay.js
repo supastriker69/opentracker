@@ -213,7 +213,7 @@ function viewReplayPlayer(r) {
   const classes = replayClasses(r);
   return `<button class="back" data-act="replay-close">← All replays</button>
     <h1>${esc(r.title)}</h1>
-    <p class="small muted">${esc(REPLAY_KINDS[r.kind])} · ${esc(r.source)}${r.link ? ` · <a href="${esc(r.link)}" target="_blank" rel="noopener">Original map</a>` : ""}</p>
+    <p class="small muted">${esc(REPLAY_KINDS[r.kind])} · ${esc(r.source)}${safeUrl(r.link) ? ` · <a href="${esc(safeUrl(r.link))}" target="_blank" rel="noopener">Original map</a>` : ""}</p>
     <div class="mapbox" id="mapbox"><div id="map" role="region" aria-label="Flood replay map"></div>
       <div class="mapctl"><button data-act="zoom" data-d="1" aria-label="Zoom in">+</button><button data-act="zoom" data-d="-1" aria-label="Zoom out">−</button></div>
       <div class="mapattr">Map data: Natural Earth · MapLibre</div></div>

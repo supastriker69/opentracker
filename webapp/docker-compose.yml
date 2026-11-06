@@ -47,7 +47,7 @@ services:
     environment:
       <<: *env
       ROLE: push
-      PUSH_CONCURRENCY: "100"
+      PUSH_CONCURRENCY: "200"
     healthcheck: {disable: true}   # senders don't serve HTTP
   backup:
     image: redis:7.4.12-alpine     # has redis-cli and redis-check-rdb

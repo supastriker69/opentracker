@@ -123,6 +123,7 @@ def run(base, keys):
         ctx.route("https://fonts.googleapis.com/**", lambda r: r.fulfill(status=200, content_type="text/css", body=""))
         ctx.route("https://s3.amazonaws.com/elevation-tiles-prod/**", terrain)
         ctx.route("https://tiles.openfreemap.org/**", omt)
+        ctx.add_init_script("for (const k of ['MAPV', 'DB', 'REPO']) Object.defineProperty(window, k, {get: () => window.OpenTracker && window.OpenTracker[k], configurable: true});")
         page = ctx.new_page(); page.set_default_timeout(TIMEOUT)
         page.on("pageerror", lambda e: errors.append(f"page error: {e}"))
         page.on("console", lambda m: m.type == "error" and errors.append(f"console error: {m.text}"))
@@ -304,7 +305,7 @@ def run(base, keys):
             see("Hour 5 · 0.77 km² under water · 1.2 million m³ of water", "#proj-now")
             eq(page.evaluate("MAPV.map.getLayoutProperty('projImg', 'visibility')"), "visible", "the water is drawn over the 3D map")
             accessible(page, "the 3D projection with its results")
-            page.screenshot(path=str(SHOTS / "web-projection.png"), full_page=True)
+            page.screenshot(path=str(SHOTS / "web-projection.png"), full_page=True, timeout=60_000)   # software-rendered 3D: slow on a busy machine
             page.evaluate("() => { const s = document.querySelector('#proj-slider'); s.value = 2; s.dispatchEvent(new Event('input', {bubbles: true})); }")
             see("Hour 2 · 0 km² under water · 395 thousand m³ of water", "#proj-now")
             see("Rain that ran off the ground: 1.8 million m³.")
@@ -327,6 +328,32 @@ def run(base, keys):
             see("Open Tracker", "header")
             eq(page.evaluate("fetch('/api/notices').then(r => r.json()).then(j => j.notices.some(n => /Evacuate/.test(n.title)))"), True, "the last alerts are available offline")
             ctx.set_offline(False)
+
+            step("a low-cost phone on slow mobile data: usable within budget")
+            slow = b.new_context(viewport={"width": 360, "height": 740}, timezone_id="Africa/Lagos", locale="en-US", service_workers="block")
+            slow.route("https://fonts.googleapis.com/**", lambda r: r.fulfill(status=200, content_type="text/css", body=""))
+            slow.route("https://tiles.openfreemap.org/**", omt)
+            sp = slow.new_page()
+            cdp = slow.new_cdp_session(sp)
+            cdp.send("Network.enable")
+            cdp.send("Network.setCacheDisabled", {"cacheDisabled": True})
+            # Chrome's "Fast 3G" preset: 1.6 Mbit/s down, 750 kbit/s up, 150 ms; and a phone CPU four times slower
+            cdp.send("Network.emulateNetworkConditions", {"offline": False, "latency": 150, "downloadThroughput": 1.6e6 / 8, "uploadThroughput": 750e3 / 8})
+            cdp.send("Emulation.setCPUThrottlingRate", {"rate": 4})
+            sent = {}
+            cdp.on("Network.loadingFinished", lambda e: sent.__setitem__(e["requestId"], e["encodedDataLength"]))
+            t0 = time.monotonic()
+            sp.goto(base + "/", wait_until="commit")
+            expect(sp.locator("h1")).to_contain_text("Is my area at risk", timeout=30_000)
+            expect(sp.locator("#q")).to_be_editable(timeout=30_000)
+            usable_s = time.monotonic() - t0
+            usable_kb = sum(sent.values()) / 1024
+            sp.fill("#q", "kaneshie")
+            expect(sp.locator("#results")).to_contain_text("Kaneshie", timeout=30_000)
+            print(f"    usable in {usable_s:.1f} s after {usable_kb:.0f} KB on Fast 3G with a 4x slower CPU", flush=True)
+            check(usable_s < 10, f"home screen usable within 10 s on slow mobile data (took {usable_s:.1f} s)")
+            check(usable_kb < 500, f"under 500 KB sent before the home screen is usable ({usable_kb:.0f} KB)")
+            slow.close()
         except Exception:
             try: page.screenshot(path=str(SHOTS / "web-failure.png"), full_page=True, timeout=10_000)   # what the page showed when the check failed
             except Exception: pass

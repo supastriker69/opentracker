@@ -66,6 +66,14 @@ function bearer(req) { const m = /^Bearer\s+(\S+)$/.exec(req.headers.authorizati
 /* ---------- static files ---------- */
 const TYPES = {".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".mjs": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8", ".json": "application/json",
   ".webmanifest": "application/manifest+json", ".png": "image/png", ".svg": "image/svg+xml", ".ico": "image/x-icon", ".txt": "text/plain; charset=utf-8"};
+/* whether an Accept-Encoding header allows an encoding ("br;q=0" refuses it) */
+function acceptsEncoding(header, name) {
+  return String(header || "").split(",").some(part => {
+    const [token, ...params] = part.trim().split(";").map(x => x.trim());
+    const q = params.find(p => /^q=/i.test(p));
+    return token.toLowerCase() === name && !(q && Number(q.slice(2)) === 0);
+  });
+}
 function serveStatic(req, res, publicDir, url) {
   let rel = url.pathname === "/" ? "/index.html" : url.pathname;
   try { rel = decodeURIComponent(rel); } catch (e) { return send(req, res, 400, {error: "bad path"}); }
@@ -77,17 +85,27 @@ function serveStatic(req, res, publicDir, url) {
       return send(req, res, 404, {error: "not found"});
     }
     const ext = path.extname(file).toLowerCase();
-    const etag = `W/"${st.size.toString(36)}-${st.mtimeMs.toString(36)}"`;
     /* pages and the service worker are always revalidated; versioned files (?v=) are cached for a year */
     const cache = ext === ".html" || rel === "/sw.js" || ext === ".webmanifest" ? "no-cache"
       : url.searchParams.has("v") ? "public, max-age=31536000, immutable" : "public, max-age=3600, stale-while-revalidate=86400";
-    const headers = {"Content-Type": TYPES[ext] || "application/octet-stream", "Cache-Control": cache, ETag: etag};
-    if (req.headers["if-none-match"] === etag) { res.writeHead(304, headers); return res.end(); }
-    headers["Content-Length"] = st.size;
-    res.writeHead(200, headers);
-    if (req.method === "HEAD") return res.end();
-    fs.createReadStream(file).on("error", () => res.destroy()).pipe(res);
+    const reply = (from, fst, encoding) => {
+      const etag = `W/"${st.size.toString(36)}-${st.mtimeMs.toString(36)}${encoding ? "-" + encoding : ""}"`;
+      const headers = {"Content-Type": TYPES[ext] || "application/octet-stream", "Cache-Control": cache, ETag: etag, Vary: "Accept-Encoding"};
+      if (encoding) headers["Content-Encoding"] = encoding;
+      if (req.headers["if-none-match"] === etag) { res.writeHead(304, headers); return res.end(); }
+      headers["Content-Length"] = fst.size;
+      res.writeHead(200, headers);
+      if (req.method === "HEAD") return res.end();
+      fs.createReadStream(from).on("error", () => res.destroy()).pipe(res);
+    };
+    /* tools/build.py writes Brotli (.br) and gzip (.gz) copies of the larger files: send the smallest the browser takes */
+    const variants = [["br", ".br"], ["gzip", ".gz"]].filter(([name]) => acceptsEncoding(req.headers["accept-encoding"], name));
+    const pick = i => {
+      if (i >= variants.length) return reply(file, st, null);
+      fs.stat(file + variants[i][1], (e, vst) => (!e && vst.isFile() && vst.mtimeMs >= st.mtimeMs ? reply(file + variants[i][1], vst, variants[i][0]) : pick(i + 1)));
+    };
+    pick(0);
   });
 }
 
-module.exports = {InputError, secure, buildCsp, send, readBody, clientIp, sameOrigin, bearer, serveStatic};
+module.exports = {InputError, secure, buildCsp, send, readBody, clientIp, sameOrigin, bearer, serveStatic, acceptsEncoding};

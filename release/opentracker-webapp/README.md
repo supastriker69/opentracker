@@ -24,13 +24,14 @@ deploying, rollback, backups, monitoring and what to do when something goes wron
 |---|---|---|
 | `PORT`, `HOST` | `8080`, `127.0.0.1` | where to listen (`0.0.0.0` in containers) |
 | `REDIS_URL` | (none) | shared storage; required for more than one process or server |
+| `REDIS_SUB_URLS` | (none) | extra Redis servers for the subscriptions, comma-separated: each holds the phones whose id hashes to it, and warnings are targeted on all at once. Needed past a few hundred million followers (`docs/SCALING.md`). Set it once: changing the list moves phones between shards |
 | `WORKERS` | `1` | processes per machine; `auto` uses every core (needs `REDIS_URL`) |
 | `ROLE` | `all` | `web` (HTTP only), `push` (notification sender, data feeds, weather poller and watchdog; no HTTP) or `all` |
 | `DATA_DIR` | `.data` | file storage folder when there is no Redis |
 | `TRUST_PROXY` | off | set `1` behind a proxy or CDN (real client IPs, HSTS) |
 | `VAPID_SUBJECT` | `mailto:alerts@example.org` | contact address push services can use about your alerts |
 | `GOOGLE_WEATHER_API_KEY` | (none) | turns on live rain forecasts from Google Weather (Google Maps Platform, billing required) |
-| `PUSH_CONCURRENCY` | `50` | parallel deliveries per sender |
+| `PUSH_CONCURRENCY` | `200` | messages in flight per sender (at about 80 ms per push-service call, 200 keeps one core busy encrypting; measured by `load/loadtest.js`) |
 | `FEEDS_OFF` | (none) | data feeds to switch off, comma separated, or `all` (see Data feeds) |
 | `FEED_PLACES`, `FEED_RIVERS` | `300`, `150` | how many places get heat forecasts, and how many river towns get river forecasts |
 | `FEED_FORECAST_HOURS` | `6` | hours between heat and rain forecasts |

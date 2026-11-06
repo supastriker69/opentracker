@@ -24,6 +24,11 @@ const until = async (cond, ms = 4000) => { const t = Date.now(); while (!(await 
 
 const backends = [["file", {}]];
 if (process.env.TEST_REDIS_URL) backends.push(["redis", {REDIS_URL: process.env.TEST_REDIS_URL}]);
+/* the same, with subscriptions spread over two more Redis databases (shards) */
+if (process.env.TEST_REDIS_URL) {
+  const shard = n => process.env.TEST_REDIS_URL.replace(/\/\d+$/, "") + "/" + n;
+  backends.push(["redis with two subscription shards", {REDIS_URL: process.env.TEST_REDIS_URL, REDIS_SUB_URLS: shard(13) + "," + shard(12)}]);
+}
 
 for (const [name, extraEnv] of backends) {
   test.describe(`server with ${name} storage`, () => {
@@ -38,7 +43,7 @@ for (const [name, extraEnv] of backends) {
     test.before(async () => {
       delivered.length = 0;   /* each storage back end starts with a clean record */
       p = await startProcess(cfg);
-      if (name === "redis") await p.store.r.flushDb();
+      if (name.startsWith("redis")) for (const c of new Set([p.store.r, ...p.store.shards])) await c.flushDb();
       base = "http://127.0.0.1:" + p.server.address().port;
       const key = out => /(otk_[A-Za-z0-9_-]+)/.exec(out)[1], kid = out => /Key ([0-9a-f]{8})/.exec(out)[1];
       keys.admin = key(await cli("keys:add", "opentracker", "Open Tracker team", "--admin"));
@@ -56,6 +61,41 @@ for (const [name, extraEnv] of backends) {
       return {status: r.status, headers: r.headers, json: await r.json().catch(() => null)};
     };
     const deliveredTo = n => delivered.filter(d => d.endpoint.endsWith("/" + n)).length;
+
+    test("targeting streams in chunks: every phone once, however many follow", async t => {
+      t.after(() => p.store.delSubs([...Array.from({length: 2600}, (_, n) => "t" + n), "ng"]));   /* the other tests count phones */
+      const sub = (n, extra) => Object.assign({subscription: subscription("t" + n), countries: ["GH"], whole: [], areas: [], points: [], updated: 1}, extra);
+      const want = {country: new Set(), accra: new Set()};
+      for (let n = 0; n < 2600; n++) {
+        const kind = n % 4;   /* whole country; Accra region; a point in Accra (and the region: found by two indexes); a point in Kumasi */
+        const s = sub(n, kind === 0 ? {whole: ["GH"]} : kind === 1 ? {areas: ["GH-AA"]} : kind === 2 ? {areas: ["GH-AA"], points: [[-0.2, 5.6]]} : {points: [[-1.62, 6.69]]});
+        await p.store.putSub("t" + n, s);
+        want.country.add("t" + n);
+        if (kind !== 3) want.accra.add("t" + n);
+      }
+      await p.store.putSub("ng", sub("ng", {countries: ["NG"], whole: ["NG"]}));
+      const collect = async (notice, size) => {
+        const seen = [], sizes = [];
+        for await (const chunk of p.store.targetChunks(notice, size)) { sizes.push(chunk.length); seen.push(...chunk.filter(id => id.startsWith("t") || id === "ng")); }
+        return {seen, sizes};
+      };
+      const country = await collect({c: "GH", areas: [], ll: null}, 1000);
+      assert.equal(country.seen.length, new Set(country.seen).size, "no phone twice");
+      assert.deepEqual(new Set(country.seen), want.country);
+      assert.ok(country.sizes.every(n => n <= 1000) && country.sizes.length >= 3);
+      const accra = await collect({c: "GH", areas: ["GH-AA"], ll: [-0.2, 5.6], km: 10}, 500);
+      assert.equal(accra.seen.length, new Set(accra.seen).size, "a phone in the region and near the point comes once");
+      assert.deepEqual(new Set(accra.seen), want.accra);
+      const world = await collect({c: "ALL", areas: [], ll: null}, 1000);
+      assert.equal(world.seen.length, new Set(world.seen).size);
+      assert.deepEqual(new Set(world.seen), new Set([...want.country, "ng"]), "a notice for every country, with no area, reaches everyone");
+      if (name.startsWith("redis")) for (const c of p.store.shards) assert.deepEqual(await c.keys("ot:tmp:*"), [], "no working keys left behind");
+      if (name.includes("shards")) {   /* both shards hold a fair share */
+        const counts = await Promise.all(p.store.shards.map(c => c.hLen("ot:sub")));
+        assert.ok(counts.every(n => n > 1000), "subscriptions per shard: " + counts);
+        assert.equal(await p.store.r.hLen("ot:sub"), 0, "the main Redis holds none");
+      }
+    });
 
     test("health, security headers, static files, caching", async () => {
       assert.equal((await call("/healthz")).status, 200);
@@ -183,6 +223,42 @@ for (const [name, extraEnv] of backends) {
     });
   });
 }
+
+test("static files: the smallest form the browser takes, never an out-of-date one", async () => {
+  const http = require("node:http");
+  const zlib = require("node:zlib");
+  const {serveStatic, acceptsEncoding} = require("../lib/http");
+  assert.ok(acceptsEncoding("gzip, deflate, br", "br") && acceptsEncoding("br;q=0.5", "br"));
+  assert.ok(!acceptsEncoding("gzip, br;q=0", "br") && !acceptsEncoding("", "gzip") && !acceptsEncoding("xbr", "br"));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "ot-static-"));
+  const body = "const x = 1;\n".repeat(500);
+  fs.writeFileSync(path.join(dir, "a.js"), body);
+  require("../lib/precompress").precompress(dir);
+  fs.writeFileSync(path.join(dir, "b.js"), body);
+  fs.writeFileSync(path.join(dir, "b.js.br"), "stale");
+  fs.utimesSync(path.join(dir, "b.js.br"), new Date(2000, 0, 1), new Date(2000, 0, 1));   /* older than b.js: never sent */
+  const server = http.createServer((req, res) => serveStatic(req, res, dir, new URL(req.url, "http://x")));
+  await new Promise(r => server.listen(0, "127.0.0.1", r));
+  const get = (p, enc) => new Promise((resolve, reject) => http.get({host: "127.0.0.1", port: server.address().port, path: p, headers: enc ? {"Accept-Encoding": enc} : {}}, res => {
+    const parts = []; res.on("data", d => parts.push(d)); res.on("end", () => resolve({h: res.headers, b: Buffer.concat(parts)}));
+  }).on("error", reject));
+  try {
+    const br = await get("/a.js?v=1", "gzip, br");
+    assert.equal(br.h["content-encoding"], "br");
+    assert.equal(zlib.brotliDecompressSync(br.b).toString(), body);
+    assert.ok(br.b.length < body.length / 10 && br.h.vary === "Accept-Encoding" && /-br"$/.test(br.h.etag));
+    const gz = await get("/a.js?v=1", "gzip, br;q=0");
+    assert.equal(gz.h["content-encoding"], "gzip");
+    assert.equal(zlib.gunzipSync(gz.b).toString(), body);
+    const plain = await get("/a.js?v=1");
+    assert.equal(plain.h["content-encoding"], undefined);
+    assert.equal(plain.b.toString(), body);
+    assert.notEqual(plain.h.etag, br.h.etag, "each form has its own tag, so caches never mix them up");
+    const stale = await get("/b.js", "br");
+    assert.equal(stale.h["content-encoding"], undefined, "an out-of-date compressed copy is ignored");
+    assert.equal(stale.b.toString(), body);
+  } finally { server.close(); fs.rmSync(dir, {recursive: true, force: true}); }
+});
 
 test("payload encryption works with a real browser key pair", () => {
   const crypto = require("node:crypto");

@@ -28,15 +28,25 @@ jobs:
           git diff --exit-code -- release/ || { echo "release/ is out of date; run python3 tools/build.py and commit it"; exit 1; }
 
   python:
-    name: Python tests (modelling, satellite, world)
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
+    name: Python tests with real SFINCS runs, 90% coverage each (modelling, satellite, world)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env: {SFINCS_BIN: "${{ github.workspace }}/modelling/.sfincs/bin/sfincs"}
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-python@v6
-        with: {python-version: "3.12"}
-      - run: pip install -r modelling/requirements.txt -r satellite/requirements.txt pytest
-      - run: python -m pytest modelling/tests satellite/tests world/tests -q
+        with: {python-version: "3.13"}
+      - run: sudo apt-get update && sudo apt-get install -y gfortran autoconf automake libtool make libnetcdff-dev
+      - name: SFINCS, built once per pinned revision
+        uses: actions/cache@v6
+        with: {path: modelling/.sfincs, key: "sfincs-ubuntu-24.04-${{ hashFiles('modelling/build_sfincs.sh') }}"}
+      - run: sh modelling/build_sfincs.sh
+      - run: pip install -c tools/python-constraints.txt -r modelling/requirements.txt -r satellite/requirements.txt pytest pytest-cov
+      - name: Every package's tests, failing below 90% coverage of its code
+        run: |
+          for pkg in modelling satellite world; do
+            (cd "$pkg" && python -m pytest tests -q --cov=. --cov-config=../tools/coveragerc --cov-fail-under=90) || exit 1
+          done
 
   browser:
     name: Browser tests (claude.ai page and web app)
@@ -50,16 +60,47 @@ jobs:
         with: {python-version: "3.12"}
       - run: pip install playwright==1.56.0 numpy==2.3.4 pillow==12.0.0
       - run: python -m playwright install --with-deps chromium
+      - run: npm ci --prefix tools/lint   # the bundler, and axe-core for the accessibility checks
       - run: python3 tools/build.py
       - run: cd dist/opentracker-webapp && npm ci
-      - run: npm ci --prefix tools/lint   # axe-core for the accessibility checks
-      - name: Nine scenarios on the claude.ai page
+      - name: The browser code loads as plain ES modules (no load-order faults hidden by bundling)
+        run: python3 tests/web/modules_test.py
+      - name: Eleven scenarios on the claude.ai page (incl. script injection and accessibility)
         run: python3 tests/e2e/run.py
       - name: The web app, its console and the 3D projection
         run: python3 tests/web/webapp_test.py
       - uses: actions/upload-artifact@v6
         if: failure()
         with: {name: browser-test-screens, path: "tests/*/out/"}
+
+  load:
+    name: Load test (reads, alert sign-ups, notification fan-out) and the capacity plan
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      redis: {image: "redis:7.4.12-alpine", ports: ["6379:6379"]}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with: {node-version: "24"}
+      - uses: actions/setup-python@v6
+        with: {python-version: "3.12"}
+      - run: npm ci --prefix tools/lint
+      - run: python3 tools/build.py
+      - run: cd webapp && npm ci
+      - name: Load test, failing below the thresholds in load/loadtest.js
+        working-directory: webapp
+        env: {REDIS_URL: "redis://127.0.0.1:6379/14"}
+        run: node load/loadtest.js --seconds 10 --check --out load-test.json
+      - name: What 5 billion people would need, from these measurements
+        if: always()
+        working-directory: webapp
+        run: |
+          [ -f load-test.json ] || exit 0
+          { echo "### Capacity plan for 5 billion people (measured on this runner)"; node load/capacity.js load-test.json; } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v6
+        if: always()
+        with: {name: load-test, path: webapp/load-test.json, if-no-files-found: ignore}
 
   ops:
     name: Backups, restore and deploy scripts
@@ -68,7 +109,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
       - run: sudo apt-get update && sudo apt-get install -y redis-server shellcheck
-      - run: shellcheck -s sh webapp/ops/*.sh tests/ops/*.sh tools/check.sh
+      - run: shellcheck -s sh webapp/ops/*.sh tests/ops/*.sh tools/check.sh modelling/build_sfincs.sh
       - run: sh tests/ops/backup_restore_test.sh
       - run: sh tests/ops/deploy_test.sh
 

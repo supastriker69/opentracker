@@ -8,6 +8,7 @@ RUN npm ci --omit=dev && npm cache clean --force
 COPY server.js ./
 COPY lib ./lib
 COPY public ./public
+RUN node lib/precompress.js public   # Brotli and gzip copies, made from exactly the files in the image
 USER node
 EXPOSE 8080
 HEALTHCHECK --interval=15s --timeout=3s --retries=3 CMD wget -qO- http://127.0.0.1:8080/readyz >/dev/null || exit 1

@@ -3,6 +3,7 @@
    Targeting uses indexes instead of scanning: one set per country, region/state and whole-country follower,
    plus a geo index of followed points, so finding the phones for a notice stays fast with millions of them.
    Keys are prefixed "ot:" so the database can be shared with other apps. */
+const crypto = require("node:crypto");
 const {createClient} = require("redis");
 const webpush = require("web-push");
 const {matches} = require("../rules");
@@ -20,18 +21,36 @@ const K = {
 const J = s => (s ? JSON.parse(s) : null);
 
 class RedisStore {
-  constructor(url, log = console) { this.url = url; this.logger = log; }
+  /* subUrls: extra Redis servers that hold the subscriptions, each holding the ones whose id hashes to it, with their
+     targeting indexes. Empty: subscriptions live in the main Redis. Billions of followers need several (docs/SCALING.md). */
+  constructor(url, log = console, {subUrls = []} = {}) { this.url = url; this.logger = log; this.subUrls = subUrls; }
+  connect(url) {
+    const c = createClient({url, socket: {reconnectStrategy: n => Math.min(n * 200, 5000)}});
+    c.on("error", e => this.logger.error("Redis:", e.message));
+    return c;
+  }
   async init() {
-    this.r = createClient({url: this.url, socket: {reconnectStrategy: n => Math.min(n * 200, 5000)}});
-    this.r.on("error", e => this.logger.error("Redis:", e.message));
+    this.r = this.connect(this.url);
     await this.r.connect();
     this.blocking = this.r.duplicate();   /* blocking queue reads get their own connection */
     this.blocking.on("error", e => this.logger.error("Redis:", e.message));
     await this.blocking.connect();
+    this.shards = this.subUrls.length ? await Promise.all(this.subUrls.map(async u => { const c = this.connect(u); await c.connect(); return c; })) : [this.r];
     return this;
   }
   /* the main connection finishes commands already sent; the queue connection is only waiting for work, so it stops at once */
-  async close() { this.blocking.destroy(); await this.r.close().catch(() => {}); }
+  async close() {
+    this.blocking.destroy();
+    await Promise.all(this.shards.filter(c => c !== this.r).map(c => c.close().catch(() => {})));
+    await this.r.close().catch(() => {});
+  }
+  /* which subscription shard holds a subscription (FNV-1a of its id: stable, and even across shards) */
+  shardOf(id) {
+    if (this.shards.length === 1) return this.shards[0];
+    let h = 0x811c9dc5;
+    for (let i = 0; i < id.length; i++) h = Math.imul(h ^ id.charCodeAt(i), 0x01000193) >>> 0;
+    return this.shards[h % this.shards.length];
+  }
   async ping() { return (await this.r.ping()) === "PONG"; }
 
   async vapid() {
@@ -59,45 +78,77 @@ class RedisStore {
     s.points.forEach((p, i) => add ? m.geoAdd(K.geo, {longitude: p[0], latitude: p[1], member: id + "|" + i}) : m.zRem(K.geo, id + "|" + i));
   }
   async putSub(id, sub) {
-    const old = J(await this.r.hGet(K.sub, id));
-    const m = this.r.multi();
+    const r = this.shardOf(id);
+    const old = J(await r.hGet(K.sub, id));
+    const m = r.multi();
     if (old) this.indexOps(m, id, old, false);
     m.hSet(K.sub, id, JSON.stringify(sub));
     this.indexOps(m, id, sub, true);
     await m.exec();
   }
-  async getSub(id) { return J(await this.r.hGet(K.sub, id)); }
+  async getSub(id) { return J(await this.shardOf(id).hGet(K.sub, id)); }
   async delSubs(ids) {
     for (const id of ids) {
-      const old = J(await this.r.hGet(K.sub, id)); if (!old) continue;
-      const m = this.r.multi(); this.indexOps(m, id, old, false); m.hDel(K.sub, id); await m.exec();
+      const r = this.shardOf(id);
+      const old = J(await r.hGet(K.sub, id)); if (!old) continue;
+      const m = r.multi(); this.indexOps(m, id, old, false); m.hDel(K.sub, id); await m.exec();
     }
   }
   async getSubs(ids) {
     if (!ids.length) return [];
-    const vals = await this.r.hmGet(K.sub, ids);
-    return ids.map((id, i) => [id, J(vals[i])]).filter(([, s]) => s);
+    const groups = new Map();
+    ids.forEach(id => { const r = this.shardOf(id); if (!groups.has(r)) groups.set(r, []); groups.get(r).push(id); });
+    const found = new Map();
+    await Promise.all([...groups].map(async ([r, list]) => (await r.hmGet(K.sub, list)).forEach((v, i) => { if (v) found.set(list[i], J(v)); })));
+    return ids.filter(id => found.has(id)).map(id => [id, found.get(id)]);
+  }
+  /* The phones a notice is for, in chunks of at most `size`, so a warning to tens of millions never sits in one
+     process's memory: Redis builds the union of the matching indexes itself (a sorted set, read back by position,
+     so every phone comes exactly once), and the exact rule checks each chunk (e.g. a point near a border). */
+  async *targetOn(r, notice, size) {
+    const tmp = "ot:tmp:target:" + crypto.randomUUID(), tmpGeo = tmp + ":geo";
+    try {
+      const countries = notice.c === "ALL" ? await r.sMembers(K.countries) : [notice.c];
+      const sets = countries.map(K.whole);
+      if (!notice.areas.length && !notice.ll) sets.push(...countries.map(K.byCountry));
+      else sets.push(...notice.areas.map(K.byArea));
+      if (sets.length) await r.zUnionStore(tmp, sets);
+      if (notice.ll) {
+        const found = await r.geoSearchStore(tmpGeo, K.geo, {longitude: notice.ll[0], latitude: notice.ll[1]}, {radius: notice.km, unit: "km"});
+        for (let i = 0; i < found; i += size) {
+          const members = await r.zRange(tmpGeo, i, i + size - 1);
+          if (members.length) await r.zAdd(tmp, members.map(m => ({score: 1, value: m.split("|")[0]})), {NX: true});
+        }
+      }
+      await r.expire(tmp, 3600);   /* cleaned up below; this only guards against a crash part-way */
+      const total = await r.zCard(tmp);
+      for (let i = 0; i < total; i += size) {
+        const ids = await r.zRange(tmp, i, i + size - 1);
+        const out = (await this.getSubs(ids)).filter(([, s]) => matches(notice, s)).map(([id]) => id);
+        if (out.length) yield out;
+      }
+    } finally {
+      await r.del([tmp, tmpGeo]).catch(() => {});
+    }
+  }
+  /* one source of chunks per subscription shard: the notification queue targets all shards at once */
+  targetSources(notice, size = 1000) { return this.shards.map(r => this.targetOn(r, notice, size)); }
+  async *targetChunks(notice, size = 1000) {
+    for (const source of this.targetSources(notice, size)) yield* source;
   }
   async targetIds(notice) {
-    const countries = notice.c === "ALL" ? await this.r.sMembers(K.countries) : [notice.c];
-    const ids = new Set();
-    const add = list => list.forEach(x => ids.add(x));
-    if (countries.length) add(await this.r.sUnion(countries.map(K.whole)));
-    if (!notice.areas.length && !notice.ll) { if (countries.length) add(await this.r.sUnion(countries.map(K.byCountry))); }
-    else {
-      if (notice.areas.length) add(await this.r.sUnion(notice.areas.map(K.byArea)));
-      if (notice.ll) add((await this.r.geoSearch(K.geo, {longitude: notice.ll[0], latitude: notice.ll[1]}, {radius: notice.km, unit: "km"})).map(m => m.split("|")[0]));
-    }
-    /* the indexes find candidates; the exact rule decides (e.g. a point near a border in another country) */
     const out = [];
-    const all = [...ids];
-    for (let i = 0; i < all.length; i += 1000) (await this.getSubs(all.slice(i, i + 1000))).forEach(([id, s]) => { if (matches(notice, s)) out.push(id); });
+    for await (const chunk of this.targetChunks(notice)) out.push(...chunk);
     return out;
   }
   async subStats() {
-    const countries = await this.r.sMembers(K.countries), by = {};
-    for (const c of countries) by[c] = await this.r.sCard(K.byCountry(c));
-    return {subscribers: await this.r.hLen(K.sub), byCountry: by, withLocation: null};
+    const by = {};
+    let subscribers = 0;
+    for (const r of this.shards) {
+      subscribers += await r.hLen(K.sub);
+      for (const c of await r.sMembers(K.countries)) by[c] = (by[c] || 0) + await r.sCard(K.byCountry(c));
+    }
+    return {subscribers, byCountry: by, withLocation: null};
   }
   /* notices: a hash of records and a sorted index by time */
   async putNotice(n) {

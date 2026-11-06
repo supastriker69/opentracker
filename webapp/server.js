@@ -23,7 +23,7 @@ const {createMetrics} = require("./lib/metrics");
 const {createMonitor} = require("./lib/monitor");
 
 async function openStore(cfg, log) {
-  return cfg.redisUrl ? new RedisStore(cfg.redisUrl, log).init() : new FileStore(cfg.dataDir).init();
+  return cfg.redisUrl ? new RedisStore(cfg.redisUrl, log, {subUrls: cfg.redisSubUrls}).init() : new FileStore(cfg.dataDir).init();
 }
 
 /* a JSON file written by tools/build.py into the public folder, or the fallback when it is missing */

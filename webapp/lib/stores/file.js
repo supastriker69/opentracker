@@ -56,6 +56,10 @@ class FileStore {
   async delSubs(ids) { ids.forEach(id => delete this.db.subs[id]); if (ids.length) this.save("subs"); }
   async getSubs(ids) { return ids.map(id => [id, this.db.subs[id]]).filter(([, s]) => s); }
   async targetIds(notice) { return Object.entries(this.db.subs).filter(([, s]) => matches(notice, s)).map(([id]) => id); }
+  async *targetChunks(notice, size = 1000) {   /* one machine's file store: small enough to filter in one pass */
+    const ids = await this.targetIds(notice);
+    for (let i = 0; i < ids.length; i += size) yield ids.slice(i, i + size);
+  }
   async subStats() {
     const subs = Object.values(this.db.subs), by = {};
     subs.forEach(s => s.countries.forEach(c => by[c] = (by[c] || 0) + 1));

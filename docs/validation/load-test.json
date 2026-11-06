@@ -1,0 +1,102 @@
+{
+ "machine": {
+  "cores": 2,
+  "cpu": "Intel(R) Xeon(R) Processor @ 2.10GHz",
+  "node": "v22.22.0",
+  "memoryGB": 8
+ },
+ "seconds": 10,
+ "thresholds": {
+  "readsRps1": 1500,
+  "readsP99Ms": 250,
+  "subscribeRps": 300,
+  "pushEncryptPerSec": 150,
+  "pushLatencyBoundPerSec": 250,
+  "targetPerSec": 20000,
+  "errors": 0
+ },
+ "reads": {
+  "workers1": {
+   "requests": 97573,
+   "rps": 9751,
+   "p50": 4.9,
+   "p95": 16.3,
+   "p99": 25.2,
+   "errors": 0,
+   "statuses": {
+    "200": 89442,
+    "204": 8131
+   }
+  },
+  "workers2": {
+   "requests": 117368,
+   "rps": 11733,
+   "p50": 4.6,
+   "p95": 12.1,
+   "p99": 18.5,
+   "errors": 0,
+   "statuses": {
+    "200": 107587,
+    "204": 9781
+   }
+  }
+ },
+ "subscribe": {
+  "requests": 31995,
+  "rps": 6391,
+  "p50": 4.3,
+  "p95": 9.1,
+  "p99": 15.7,
+  "errors": 0,
+  "statuses": {
+   "200": 31995
+  }
+ },
+ "memory": {
+  "subscriptions": 31995,
+  "bytesPerSubscription": 903
+ },
+ "push": {
+  "phones": 20000,
+  "targeted": 20000,
+  "targetPerSec": 157480,
+  "encryptPerSec": 2742,
+  "latencyBoundPerSec": 1592,
+  "concurrency": 200,
+  "simulatedLatencyMs": 80
+ },
+ "checks": {
+  "readsRps1": {
+   "value": 9751,
+   "ok": true
+  },
+  "readsP99Ms": {
+   "value": 25.2,
+   "ok": true
+  },
+  "subscribeRps": {
+   "value": 6391,
+   "ok": true
+  },
+  "pushEncryptPerSec": {
+   "value": 2742,
+   "ok": true
+  },
+  "pushLatencyBoundPerSec": {
+   "value": 1592,
+   "ok": true
+  },
+  "targetPerSec": {
+   "value": 157480,
+   "ok": true
+  },
+  "errors": {
+   "value": 0,
+   "ok": true
+  },
+  "allTargeted": {
+   "value": 20000,
+   "ok": true
+  }
+ }
+}

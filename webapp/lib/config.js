@@ -52,6 +52,10 @@ function feedsOff(v) {
 
 function loadConfig(env = process.env) {
   const redisUrl = env.REDIS_URL || "";
+  const redisSubUrls = (env.REDIS_SUB_URLS || "").split(",").map(u => u.trim()).filter(Boolean);
+  if (redisSubUrls.length && !redisUrl) throw new Error("REDIS_SUB_URLS needs REDIS_URL too.");
+  if (redisSubUrls.some(u => !/^rediss?:\/\/\S+$/.test(u))) throw new Error("REDIS_SUB_URLS is a comma-separated list of redis:// or rediss:// addresses.");
+  if (new Set(redisSubUrls).size !== redisSubUrls.length) throw new Error("REDIS_SUB_URLS lists the same server twice.");
   const workers = env.WORKERS === "auto" ? os.availableParallelism() : Math.max(1, +(env.WORKERS || 1));
   if (!redisUrl && workers > 1) throw new Error("WORKERS above 1 needs shared storage: set REDIS_URL.");
   return Object.freeze({
@@ -60,6 +64,7 @@ function loadConfig(env = process.env) {
     publicDir: path.resolve(env.PUBLIC_DIR || path.join(__dirname, "..", "public")),
     dataDir: path.resolve(env.DATA_DIR || path.join(__dirname, "..", ".data")),
     redisUrl,
+    redisSubUrls,   /* subscription shards: changing the list moves which shard each phone belongs to, so set it once (docs/SCALING.md) */
     workers,
     role: env.ROLE || "all",                 /* "web" (HTTP only), "push" (notifications and data feeds only) or "all" */
     vapidSubject: env.VAPID_SUBJECT || "mailto:alerts@example.org",
@@ -71,7 +76,7 @@ function loadConfig(env = process.env) {
     alertWebhook: httpsUrl(env.ALERT_WEBHOOK_URL, "ALERT_WEBHOOK_URL"),
     alertName: String(env.ALERT_NAME || "Open Tracker").slice(0, 60),
     weatherKey: env.GOOGLE_WEATHER_API_KEY || "",
-    pushConcurrency: Math.min(500, Math.max(1, +(env.PUSH_CONCURRENCY || 50))),
+    pushConcurrency: Math.min(500, Math.max(1, +(env.PUSH_CONCURRENCY || 200))),
     pushBatch: 500,
     maxNotices: 300,
     maxContributions: 100000,

@@ -78,7 +78,7 @@ for (const [name, extraEnv] of backends) {
     test.before(async () => {
       Object.assign(world, {gdacsDown: false, capEntries: ["1"], cap3Down: false, requests: []});   /* each storage back end starts from the same outside world */
       p = await startProcess(cfg, {net: createNet({fetchImpl: async (u, i) => fakeFetch(u, i), lookup})});
-      if (name === "redis") await p.store.r.flushDb();
+      if (name.startsWith("redis")) await p.store.r.flushDb();
       base = "http://127.0.0.1:" + p.server.address().port;
       let out = "";
       await runCli(["keys:add", "opentracker", "Open Tracker team", "--admin"], p.store, {log: s => { out += s; }});

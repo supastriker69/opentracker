@@ -8,12 +8,27 @@ const webpush = require("web-push");
 function createPush({store, cfg, log = console, metrics = null}) {
   let running = false;
 
+  /* queues the notice's phones in batches as they are found, so senders start while targeting goes on and no
+     process ever holds the whole audience */
   async function enqueue(notice) {
-    const ids = await store.targetIds(notice);
-    const jobs = [];
-    for (let i = 0; i < ids.length; i += cfg.pushBatch) jobs.push({notice: notice.id, ids: ids.slice(i, i + cfg.pushBatch)});
-    await store.pushJobs(jobs);
-    return {targeted: ids.length};
+    let targeted = 0;
+    const pending = [];
+    const flush = async all => {
+      const jobs = [];
+      while (pending.length >= cfg.pushBatch || (all && pending.length)) jobs.push({notice: notice.id, ids: pending.splice(0, cfg.pushBatch)});
+      await store.pushJobs(jobs);
+    };
+    const size = Math.max(1000, cfg.pushBatch);
+    const sources = store.targetSources ? store.targetSources(notice, size) : [store.targetChunks(notice, size)];
+    await Promise.all(sources.map(async source => {   /* every subscription shard at once */
+      for await (const ids of source) {
+        targeted += ids.length;
+        pending.push(...ids);
+        await flush(false);
+      }
+    }));
+    await flush(true);
+    return {targeted};
   }
 
   async function deliver(job) {

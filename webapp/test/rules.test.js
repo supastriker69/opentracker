@@ -73,3 +73,13 @@ test("contributions can name any town or country", () => {
   assert.deepEqual(parseContribution({type: "suggestion", text: "Add Spanish", place: {type: "wc", id: "MX"}}).place, {type: "wc", id: "MX"});
   assert.throws(() => parseContribution({type: "report", text: "x", place: {type: "planet", id: "earth"}}), /place is not valid/);
 });
+
+test("subscription shards: a list of Redis addresses, only with a main Redis, no repeats", () => {
+  const {loadConfig} = require("../lib/config");
+  const main = "redis://redis:6379/0";
+  assert.deepEqual(loadConfig({REDIS_URL: main}).redisSubUrls, []);
+  assert.deepEqual(loadConfig({REDIS_URL: main, REDIS_SUB_URLS: " redis://s1:6379/0, rediss://s2:6380/0 "}).redisSubUrls, ["redis://s1:6379/0", "rediss://s2:6380/0"]);
+  assert.throws(() => loadConfig({REDIS_SUB_URLS: "redis://s1:6379/0"}), /needs REDIS_URL/);
+  assert.throws(() => loadConfig({REDIS_URL: main, REDIS_SUB_URLS: "http://s1:6379"}), /redis:\/\/ or rediss:\/\//);
+  assert.throws(() => loadConfig({REDIS_URL: main, REDIS_SUB_URLS: "redis://s1/0,redis://s1/0"}), /twice/);
+});

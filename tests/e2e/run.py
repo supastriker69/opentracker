@@ -44,7 +44,7 @@ def route(r):
 def run_scenario(b, name):
     """runs one scenario file; returns (checks passed, failure text or None, page errors)"""
     errors, counted = [], {"n": 0}
-    ctx = b.new_context(viewport={"width": 1280, "height": 900})
+    ctx = b.new_context(viewport={"width": 1280, "height": 900}, timezone_id="Africa/Lagos", locale="en-US")   # same results on any machine
     ctx.route("**/*", route)
     page = ctx.new_page()
     page.set_default_timeout(TIMEOUT)

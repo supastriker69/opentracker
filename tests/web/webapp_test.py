@@ -107,7 +107,8 @@ def run(base, keys):
     errors = []
     with sync_playwright() as p:
         b = p.chromium.launch(args=["--use-gl=angle", "--use-angle=swiftshader", "--enable-unsafe-swiftshader"])
-        ctx = b.new_context(viewport={"width": 390, "height": 844}, geolocation={"latitude": 5.567, "longitude": -0.243}, permissions=["geolocation", "notifications"])
+        ctx = b.new_context(viewport={"width": 390, "height": 844}, geolocation={"latitude": 5.567, "longitude": -0.243}, permissions=["geolocation", "notifications"],
+                            timezone_id="Africa/Lagos", locale="en-US")   # same results on any machine
         ctx.route("https://fonts.googleapis.com/**", lambda r: r.fulfill(status=200, content_type="text/css", body=""))
         ctx.route("https://s3.amazonaws.com/elevation-tiles-prod/**", terrain)
         ctx.route("https://tiles.openfreemap.org/**", omt)
@@ -276,7 +277,7 @@ def run(base, keys):
             with page.expect_download() as dl:
                 page.click("[data-act=proj-export]")
             saved = json.loads(pathlib.Path(dl.value.path()).read_text())
-            eq((saved["app"], saved["replay"]["id"], len(saved["frames"])), ("OpenTracker-replay", f"proj-p1159151403-surge-{time.strftime('%Y%m%d')}", 13), "the saved projection file")
+            eq((saved["app"], bool(re.fullmatch(r"proj-p1159151403-surge-\d{8}", saved["replay"]["id"])), len(saved["frames"])), ("OpenTracker-replay", True, 13), "the saved projection file: Accra, sea surge, dated, 13 hours")
             eq(max(f["m3"] for f in saved["frames"]), 1175586, "its peak volume in m³")
             eq(api("/api/replays", keys["admin"], saved)["status"], 200, "the server accepts the saved projection")
             page.click("[data-act=proj-sc][data-k=heavy]"); page.click("[data-act=proj-run]")

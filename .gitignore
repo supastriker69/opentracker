@@ -1,7 +1,21 @@
+# dependencies and build output
 node_modules/
-.data/
 dist/
+# local data, secrets and databases
+.data/
+*.key
+vapid.json
+keys.json
+*.rdb
+*.aof
+backups/
+.env
+.env.*
+# downloaded source data (fetched by world/fetch_sources.sh)
 world/raw
+# caches
 __pycache__/
 .pytest_cache/
+.ruff_cache/
 *.tmp
+.coverage

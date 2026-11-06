@@ -218,7 +218,7 @@ function crumbsFor(p) {
   return out;
 }
 function placeCenter(p) {
-  if (p.type === "wc") { const c = worldCountry(p.id); return c ? {bounds: [[c.b[0], c.b[1]], [c.b[2], c.b[3]]], ll: c.ll, z: 5, maxZoom: 7} : {ll: [0, 15], z: 1.6}; }
+  if (p.type === "wc") return countryFit(p.id);
   if (p.type === "wp") { const w = worldPlace(p.id); return w ? {ll: w.ll, z: 11} : {ll: [0, 15], z: 1.6}; }
   const hs = placeHot(p);
   if (p.type === "hotspot" && hs[0]) return {ll: hs[0].ll, z: 12.5};

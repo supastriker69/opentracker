@@ -170,7 +170,7 @@ document.addEventListener("click", async ev => {
       const d = document.documentElement, cur = d.classList.contains("ts-2") ? 2 : d.classList.contains("ts-1") ? 1 : 0, nx = (cur + 1) % 3;
       d.classList.remove("ts-1", "ts-2"); if (nx) d.classList.add("ts-" + nx);
       try { localStorage.setItem("ft-ts", nx ? String(nx) : ""); } catch (e) {}
-      header(); if (MAPV.map) MAPV.map.resize(); break;
+      header(); if (MAPV.map) fitToBox(); break;
     }
     case "speak": speak(); break;
     case "alerts": document.querySelectorAll(".livealert").forEach(x => x.remove()); UI.mode = "simple"; go("alerts"); break;

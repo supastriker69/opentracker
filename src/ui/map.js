@@ -139,9 +139,15 @@ function mapMount(holder, opts) {
       MAPV.ready = true;
       if (MAPV.last) mapUpdate(MAPV.last, true);
     });
-  } else {
-    requestAnimationFrame(() => MAPV.map && MAPV.map.resize());
-  }
+  } else fitToBox();
+}
+/* the map moved into a new screen: match its box now, before any camera move. Resizing stops a moving camera,
+   so it is done only when the box really changed (re-drawing the same screen must not stop a fly to a country) */
+function fitToBox() {
+  const el = MAPV.el, cv = MAPV.map.getCanvas();
+  if (!el.clientWidth || !el.clientHeight) return;
+  if (Math.abs(el.clientWidth - parseFloat(cv.style.width)) < 1 && Math.abs(el.clientHeight - parseFloat(cv.style.height)) < 1) return;
+  MAPV.map.resize();
 }
 
 /* view: {hot:[{h,r}], past:[{h,n,year}], safe:[], roads:[], dams:[], show:'risk'|..., three, sel, fit} */
@@ -177,7 +183,7 @@ function mapUpdate(view, fit) {
     const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
     if (f.bounds && (f.bounds[1][0] - f.bounds[0][0] > .02 || f.bounds[1][1] - f.bounds[0][1] > .02)) m.fitBounds(f.bounds, {padding: 60, maxZoom: f.maxZoom || 12, pitch, bearing: three ? -12 : 0, duration: reduce ? 0 : 900});
     else m.easeTo({center: f.ll, zoom: f.z, pitch, bearing: three ? -12 : 0, duration: reduce ? 0 : 900});
-  } else if (m.getPitch() !== pitch) m.easeTo({pitch, bearing: three ? -12 : 0, duration: 500});
+  } else if (!m.isMoving() && m.getPitch() !== pitch) m.easeTo({pitch, bearing: three ? -12 : 0, duration: 500});   /* never cut short a fly already on its way */
 }
 function mapZoom(d) { if (MAPV.map) MAPV.map.zoomTo(MAPV.map.getZoom() + d, {duration: 300}); }
 function mapFly(ll, z) { if (MAPV.map) MAPV.map.easeTo({center: ll, zoom: z, duration: 800}); }

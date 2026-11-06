@@ -52,8 +52,11 @@ print("heat card:", "Heat this week" in txt(), "| flood card:", "Flood signs nea
 click(".brand"); click("[data-act=country][data-id=GH]"); click("[data-act=open][data-type=country]"); page.wait_for_timeout(800)
 print("reach link:", page.locator("[data-act=reach][data-k=GH]").count())
 step("any country from the list")
-click(".brand"); page.select_option("#country-pick", "FR"); page.wait_for_timeout(1000); print(txt()[:300].replace("\n", " | "))
-print("emergency:", "112" in txt())
+click(".brand"); page.select_option("#country-pick", "FR"); page.wait_for_timeout(3000); print(txt()[:300].replace("\n", " | "))
+print("emergency:", "112" in txt(), "| map shows mainland France:", page.evaluate("(() => { const c = MAPV.map.getCenter(); return MAPV.map.getZoom() > 3.5 && c.lng > -5 && c.lng < 10 && c.lat > 41 && c.lat < 52; })()"))
+for cc in ["US", "FJ"]:
+    click(".brand"); page.select_option("#country-pick", cc); page.wait_for_timeout(3000)   # the map flies there
+    print(cc, "map zoom above 2:", page.evaluate("MAPV.map.getZoom() > 2"))
 step("back from a town goes to its country")
 click(".brand"); page.fill("#q", "lyon"); page.wait_for_timeout(300); click("#results [data-act=open]"); page.wait_for_timeout(600); click("[data-act=back]"); page.wait_for_timeout(600); print("after back:", page.inner_text("h1"))
 step("viewer reads the live data")

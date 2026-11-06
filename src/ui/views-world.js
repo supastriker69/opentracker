@@ -91,10 +91,10 @@ function viewReach(cc) {
 }
 const fmtTemp = v => (Number.isFinite(v) ? `${Math.round(v)} °C` : "—");
 function reachMapView(cc) {
-  const doc = hazardsDoc(cc), c = worldCountry(cc);
+  const doc = hazardsDoc(cc);
   const day = RCH.day;
   const heatTowns = doc ? doc.heat.filter(h => h.days[day]).map(h => ({id: h.id, ll: h.ll, level: h.days[day].level, pop: h.pop})) : [];
-  return {show: "none", heatTowns, floodSigns: floodSigns(doc), fit: c ? {bounds: [[c.b[0], c.b[1]], [c.b[2], c.b[3]]], ll: c.ll, z: 5, maxZoom: 7} : {ll: [0, 15], z: 1.6}};
+  return {show: "none", heatTowns, floodSigns: floodSigns(doc), fit: countryFit(cc)};
 }
 function reachToggle() {
   if (RCH.timer) { reachStop(); render(); return; }

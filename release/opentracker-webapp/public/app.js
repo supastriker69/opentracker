@@ -602,7 +602,7 @@ function crumbsFor(p) {
   return out;
 }
 function placeCenter(p) {
-  if (p.type === "wc") { const c = worldCountry(p.id); return c ? {bounds: [[c.b[0], c.b[1]], [c.b[2], c.b[3]]], ll: c.ll, z: 5, maxZoom: 7} : {ll: [0, 15], z: 1.6}; }
+  if (p.type === "wc") return countryFit(p.id);
   if (p.type === "wp") { const w = worldPlace(p.id); return w ? {ll: w.ll, z: 11} : {ll: [0, 15], z: 1.6}; }
   const hs = placeHot(p);
   if (p.type === "hotspot" && hs[0]) return {ll: hs[0].ll, z: 12.5};
@@ -1854,6 +1854,26 @@ const DETAILED = new Set(Object.keys(FT.countries));   /* countries with hotspot
 /* the page for a country: Ghana and Nigeria open their detailed page, every other country its flood and heat reach */
 const countryPlace = cc => (DETAILED.has(cc) ? {type: "country", id: cc} : {type: "wc", id: cc});
 
+/* the part of a country to show on a map: its towns without far-off islands and territories
+   (France's box from Natural Earth runs from French Guiana to Réunion, the United States' to Alaska and Hawaii) */
+function countryBounds(cc) {
+  const c = worldCountry(cc);
+  const whole = [[c.b[0], c.b[1]], [c.b[2], c.b[3]]];
+  const towns = WIX.byCountry.get(cc) || [];
+  const narrow = b => (b[1][0] - b[0][0] < 180 ? b : null);   /* islands across the date line (Fiji, Kiribati): centre on the capital instead */
+  if (towns.length < 8) return narrow(whole);
+  const q = (xs, f) => xs[Math.min(xs.length - 1, Math.floor(f * xs.length))];
+  const lons = towns.map(p => p.ll[0]).sort((a, b) => a - b), lats = towns.map(p => p.ll[1]).sort((a, b) => a - b);
+  const cap = towns.find(p => p.cap)?.ll || c.ll;
+  const box = [[Math.min(q(lons, .05), cap[0]) - .5, Math.min(q(lats, .05), cap[1]) - .5], [Math.max(q(lons, .95), cap[0]) + .5, Math.max(q(lats, .95), cap[1]) + .5]];
+  return narrow(box[1][0] - box[0][0] < whole[1][0] - whole[0][0] || box[1][1] - box[0][1] < whole[1][1] - whole[0][1] ? box : whole);
+}
+function countryFit(cc) {
+  const c = worldCountry(cc); if (!c) return {ll: [0, 15], z: 1.6};
+  const b = countryBounds(cc);
+  return b ? {bounds: b, ll: c.ll, z: 5, maxZoom: 7} : {ll: (WIX.byCountry.get(cc) || []).find(p => p.cap)?.ll || c.ll, z: 5};
+}
+
 function countryName(cc) { return FT.countries[cc]?.n || worldCountry(cc)?.n || cc; }
 
 /* the nearest towns to a point, within maxKm */
@@ -2854,9 +2874,15 @@ function mapMount(holder, opts) {
       MAPV.ready = true;
       if (MAPV.last) mapUpdate(MAPV.last, true);
     });
-  } else {
-    requestAnimationFrame(() => MAPV.map && MAPV.map.resize());
-  }
+  } else fitToBox();
+}
+/* the map moved into a new screen: match its box now, before any camera move. Resizing stops a moving camera,
+   so it is done only when the box really changed (re-drawing the same screen must not stop a fly to a country) */
+function fitToBox() {
+  const el = MAPV.el, cv = MAPV.map.getCanvas();
+  if (!el.clientWidth || !el.clientHeight) return;
+  if (Math.abs(el.clientWidth - parseFloat(cv.style.width)) < 1 && Math.abs(el.clientHeight - parseFloat(cv.style.height)) < 1) return;
+  MAPV.map.resize();
 }
 
 /* view: {hot:[{h,r}], past:[{h,n,year}], safe:[], roads:[], dams:[], show:'risk'|..., three, sel, fit} */
@@ -2892,7 +2918,7 @@ function mapUpdate(view, fit) {
     const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
     if (f.bounds && (f.bounds[1][0] - f.bounds[0][0] > .02 || f.bounds[1][1] - f.bounds[0][1] > .02)) m.fitBounds(f.bounds, {padding: 60, maxZoom: f.maxZoom || 12, pitch, bearing: three ? -12 : 0, duration: reduce ? 0 : 900});
     else m.easeTo({center: f.ll, zoom: f.z, pitch, bearing: three ? -12 : 0, duration: reduce ? 0 : 900});
-  } else if (m.getPitch() !== pitch) m.easeTo({pitch, bearing: three ? -12 : 0, duration: 500});
+  } else if (!m.isMoving() && m.getPitch() !== pitch) m.easeTo({pitch, bearing: three ? -12 : 0, duration: 500});   /* never cut short a fly already on its way */
 }
 function mapZoom(d) { if (MAPV.map) MAPV.map.zoomTo(MAPV.map.getZoom() + d, {duration: 300}); }
 function mapFly(ll, z) { if (MAPV.map) MAPV.map.easeTo({center: ll, zoom: z, duration: 800}); }
@@ -4114,10 +4140,10 @@ function viewReach(cc) {
 }
 const fmtTemp = v => (Number.isFinite(v) ? `${Math.round(v)} °C` : "—");
 function reachMapView(cc) {
-  const doc = hazardsDoc(cc), c = worldCountry(cc);
+  const doc = hazardsDoc(cc);
   const day = RCH.day;
   const heatTowns = doc ? doc.heat.filter(h => h.days[day]).map(h => ({id: h.id, ll: h.ll, level: h.days[day].level, pop: h.pop})) : [];
-  return {show: "none", heatTowns, floodSigns: floodSigns(doc), fit: c ? {bounds: [[c.b[0], c.b[1]], [c.b[2], c.b[3]]], ll: c.ll, z: 5, maxZoom: 7} : {ll: [0, 15], z: 1.6}};
+  return {show: "none", heatTowns, floodSigns: floodSigns(doc), fit: countryFit(cc)};
 }
 function reachToggle() {
   if (RCH.timer) { reachStop(); render(); return; }
@@ -4952,7 +4978,7 @@ document.addEventListener("click", async ev => {
       const d = document.documentElement, cur = d.classList.contains("ts-2") ? 2 : d.classList.contains("ts-1") ? 1 : 0, nx = (cur + 1) % 3;
       d.classList.remove("ts-1", "ts-2"); if (nx) d.classList.add("ts-" + nx);
       try { localStorage.setItem("ft-ts", nx ? String(nx) : ""); } catch (e) {}
-      header(); if (MAPV.map) MAPV.map.resize(); break;
+      header(); if (MAPV.map) fitToBox(); break;
     }
     case "speak": speak(); break;
     case "alerts": document.querySelectorAll(".livealert").forEach(x => x.remove()); UI.mode = "simple"; go("alerts"); break;

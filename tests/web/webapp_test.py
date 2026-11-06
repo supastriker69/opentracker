@@ -248,6 +248,14 @@ def run(base, keys):
             eq(http_post(base + "/api/contribute", {"type": "report", "text": "Flood " + P, "src": "javascript:window.__xss=1"}), 400, "a script link is refused")
             eq(api("/api/contribute", body={"type": "report", "text": "Flood " + P, "placeText": P, "src": "https://example.org/x"})["status"], 202, "hostile text is accepted as text")
             c.reload(); see("Flood <img src=x", "#contribs", c)
+            for pg, where in [(c, "the console"), (page, "the app")]:   # every table that scrolls sideways can be scrolled by keyboard
+                until("""() => [...document.querySelectorAll('.tablewrap')].every(b => (b.scrollWidth > b.clientWidth + 1) === (b.tabIndex === 0))""",
+                      what=f"tables that scroll sideways in {where} take keyboard focus, and only those", on=pg)
+            c.set_viewport_size({"width": 320, "height": 700})
+            until("() => [...document.querySelectorAll('.tablewrap')].some(b => b.scrollWidth > b.clientWidth + 1 && b.tabIndex === 0)",
+                  what="on a small phone the console's tables scroll and can be reached by keyboard", on=c)
+            accessible(c, "the push console on a small phone")
+            c.set_viewport_size({"width": 390, "height": 844})
             for pg, where in [(c, "the console"), (page, "the app")]:
                 eq(pg.evaluate("""() => ({ran: window.__xss || 0, tags: document.querySelectorAll('img[src="x"], svg[onload], [onerror], [onload]').length,
                     links: [...document.querySelectorAll('[href]')].filter(e => /^\\s*javascript:/i.test(e.getAttribute('href'))).length})"""), {"ran": 0, "tags": 0, "links": 0}, f"nothing injected in {where}")

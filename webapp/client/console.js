@@ -6,6 +6,19 @@
   const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"}[c]));
   const safeUrl = u => (/^https?:\/\/[^\s"'<>]+$/i.test(String(u || "")) ? String(u) : "");   /* only web links, whatever the data says */
   const S = {key: "", me: null, areas: [], sent: [], approval: true, autoHeat: false};
+  /* tables that scroll sideways get a keyboard stop while they overflow, so they can be scrolled with the arrow keys */
+  (function watchScrollers() {
+    let queued = false;
+    const update = () => document.querySelectorAll(".tablewrap").forEach(box => {
+      const scrolls = box.scrollWidth > box.clientWidth + 1;
+      if (scrolls && box.dataset.keyStop !== "1") { box.tabIndex = 0; box.dataset.keyStop = "1"; }
+      else if (!scrolls && box.dataset.keyStop === "1") { box.removeAttribute("tabindex"); delete box.dataset.keyStop; }
+    });
+    const soon = () => { if (!queued) { queued = true; requestAnimationFrame(() => { queued = false; update(); }); } };
+    new MutationObserver(soon).observe(document.body, {childList: true, subtree: true});
+    window.addEventListener("resize", soon);
+    soon();
+  })();
   try { S.key = sessionStorage.getItem("ftc-key") || ""; } catch (e) {}
 
   async function api(path, body) {

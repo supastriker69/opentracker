@@ -1,6 +1,6 @@
 "use strict";
 /* Runs the real server (HTTP, queue, sender) against each storage back end.
-   File storage always; Redis too when TEST_REDIS_URL is set (e.g. redis://127.0.0.1:6390/15).
+   File storage always; Redis too when TEST_REDIS_URL is set (any database: each test file picks its own, test/redis-db.js).
    Phone delivery is captured by replacing web-push's network call. */
 const test = require("node:test");
 const assert = require("node:assert/strict");
@@ -11,6 +11,7 @@ const webpush = require("web-push");
 const {loadConfig} = require("../lib/config");
 const {startProcess} = require("../server");
 const {runCli} = require("../lib/cli");
+const {redisDb} = require("./redis-db");
 
 const delivered = [];
 let goneNext = 0;
@@ -23,11 +24,10 @@ const subscription = n => ({endpoint: "https://push.example.org/send/" + n, keys
 const until = async (cond, ms = 4000) => { const t = Date.now(); while (!(await cond())) { if (Date.now() - t > ms) throw new Error("timed out"); await new Promise(r => setTimeout(r, 25)); } };
 
 const backends = [["file", {}]];
-if (process.env.TEST_REDIS_URL) backends.push(["redis", {REDIS_URL: process.env.TEST_REDIS_URL}]);
-/* the same, with subscriptions spread over two more Redis databases (shards) */
 if (process.env.TEST_REDIS_URL) {
-  const shard = n => process.env.TEST_REDIS_URL.replace(/\/\d+$/, "") + "/" + n;
-  backends.push(["redis with two subscription shards", {REDIS_URL: process.env.TEST_REDIS_URL, REDIS_SUB_URLS: shard(13) + "," + shard(12)}]);
+  backends.push(["redis", {REDIS_URL: redisDb(15)}]);
+  /* the same, with subscriptions spread over two more Redis databases (shards) */
+  backends.push(["redis with two subscription shards", {REDIS_URL: redisDb(11), REDIS_SUB_URLS: redisDb(13) + "," + redisDb(12)}]);
 }
 
 for (const [name, extraEnv] of backends) {

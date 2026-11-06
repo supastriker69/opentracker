@@ -13,6 +13,7 @@ const {FileStore} = require("../lib/stores/file");
 const {RedisStore} = require("../lib/stores/redis");
 const {loadConfig} = require("../lib/config");
 const {startProcess} = require("../server");
+const {redisDb} = require("./redis-db");
 
 const MIN = 60e3;
 const quiet = {debug() {}, info() {}, warn() {}, error() {}, log() {}};
@@ -77,7 +78,7 @@ function fakeFeeds(state) {
 }
 
 const backends = [["file", () => new FileStore(fs.mkdtempSync(path.join(os.tmpdir(), "ot-mon-"))).init()]];
-if (process.env.TEST_REDIS_URL) backends.push(["redis", async () => { const s = await new RedisStore(process.env.TEST_REDIS_URL, quiet).init(); await s.r.flushDb(); return s; }]);
+if (process.env.TEST_REDIS_URL) backends.push(["redis", async () => { const s = await new RedisStore(redisDb(9), quiet).init(); await s.r.flushDb(); return s; }]);
 
 for (const [name, open] of backends) {
   test(`watchdog with ${name} storage: raises each problem once, then says when it is resolved`, async () => {

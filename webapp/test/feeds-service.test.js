@@ -12,6 +12,7 @@ const {startProcess} = require("../server");
 const {runCli} = require("../lib/cli");
 const {createNet} = require("../lib/feeds/net");
 const fx = require("./fixtures/feeds");
+const {redisDb} = require("./redis-db");
 
 const PLACES = [
   {id: "p1", n: "Abuja", c: "NG", a1: "FCT", ll: [7.49, 9.06], pop: 1576000, cap: 1},
@@ -46,7 +47,7 @@ function fakeFetch(url, init) {
 const lookup = async host => [{address: host.startsWith("intranet.") ? "10.0.0.5" : "93.184.216.34"}];
 
 const backends = [["file", {}]];
-if (process.env.TEST_REDIS_URL) backends.push(["redis", {REDIS_URL: process.env.TEST_REDIS_URL}]);
+if (process.env.TEST_REDIS_URL) backends.push(["redis", {REDIS_URL: redisDb(10)}]);
 
 for (const [name, extraEnv] of backends) {
   test.describe(`data feeds with ${name} storage`, () => {

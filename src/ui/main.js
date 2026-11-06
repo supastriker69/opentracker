@@ -14,6 +14,7 @@ import {replayImportFile, replayMapView, replayOutlineSubmit, replayShow, replay
 import {countryPlace, DETAILED, worldCountry, worldPlace} from "../features/world.js";
 import {peopleSearch} from "./admin/people.js";
 import {fitToBox, mapFly, mapMount, mapProjection, mapUpdate, MAPV, mapZoom} from "./map.js";
+import {watchScrollers} from "./scrollers.js";
 import {adminAct, adminImport, adminSubmit, liveImport, memberChange, viewAdmin} from "./views-admin.js";
 import {exHot, viewExpert} from "./views-expert.js";
 import {resultsHtml, viewAnswer, viewMap, viewStatus, viewWhere, yearMatch} from "./views-simple.js";
@@ -345,6 +346,7 @@ export function start() {
   if (!document.documentElement.lang) document.documentElement.lang = "en";   /* the claude.ai page frame sets none: screen readers need it */
   /* a read-only handle for support and the browser tests: the map, the data connection and the permission-checked writes */
   Object.defineProperty(window, "OpenTracker", {value: Object.freeze({MAPV, DB, REPO}), enumerable: false});
+  watchScrollers();
   render();
   startDb();
 }

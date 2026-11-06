@@ -1,6 +1,6 @@
 /* Open Tracker service worker: works offline and shows phone alerts. */
 "use strict";
-const VERSION = "2c14bfec8b";
+const VERSION = "1d71f8635a";
 const CACHE = "opentracker-" + VERSION;
 const SHELL = ["/", "/app.css", "/app.js", "/geo.js", "/vendor/maplibre-gl.mjs", "/vendor/maplibre-gl-worker.mjs", "/manifest.webmanifest", "/icons/icon-192.png", "/icons/icon-512.png", "/icons/badge-96.png"];
 

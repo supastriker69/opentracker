@@ -4533,6 +4533,36 @@ const MAPLIB_URL = "/vendor/maplibre-gl.mjs";
     }
   }
 
+  // src/ui/scrollers.js
+  var SCROLLERS = ".tablewrap";
+  function update() {
+    document.querySelectorAll(SCROLLERS).forEach((box) => {
+      const scrolls = box.scrollWidth > box.clientWidth + 1;
+      if (scrolls && box.dataset.keyStop !== "1") {
+        box.tabIndex = 0;
+        box.dataset.keyStop = "1";
+      } else if (!scrolls && box.dataset.keyStop === "1") {
+        box.removeAttribute("tabindex");
+        delete box.dataset.keyStop;
+      }
+    });
+  }
+  function watchScrollers() {
+    let queued = false;
+    const soon = () => {
+      if (!queued) {
+        queued = true;
+        requestAnimationFrame(() => {
+          queued = false;
+          update();
+        });
+      }
+    };
+    new MutationObserver(soon).observe(document.body, { childList: true, subtree: true });
+    window.addEventListener("resize", soon);
+    soon();
+  }
+
   // src/ui/views-expert.js
   function exCtx() {
     const e = UI.ex;
@@ -5854,6 +5884,7 @@ const MAPLIB_URL = "/vendor/maplibre-gl.mjs";
   function start() {
     if (!document.documentElement.lang) document.documentElement.lang = "en";
     Object.defineProperty(window, "OpenTracker", { value: Object.freeze({ MAPV, DB, REPO }), enumerable: false });
+    watchScrollers();
     render();
     startDb();
   }

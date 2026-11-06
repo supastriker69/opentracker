@@ -47,12 +47,12 @@
       <h2>Waiting for approval</h2>
       <div class="toolbar"><input id="decide-note" maxlength="300" placeholder="Note to the agency when rejecting (optional)" aria-label="Note to the agency"></div>
       <p id="decide-msg" role="status"></p>
-      <div class="tablewrap"><table><thead><tr><th>Sent</th><th>Agency</th><th>Notice</th><th>Status</th><th></th></tr></thead><tbody id="pending"></tbody></table></div>
+      <div class="tablewrap"><table><thead><tr><th>Sent</th><th>Agency</th><th>Notice</th><th>Status</th><th><span class="sr-only">Actions</span></th></tr></thead><tbody id="pending"></tbody></table></div>
     </section>
 
     <section class="card">
       <h2>Notices</h2>
-      <div class="tablewrap"><table><thead><tr><th>Sent</th><th>Agency</th><th>Notice</th><th>Status</th><th></th></tr></thead><tbody id="sent"></tbody></table></div>
+      <div class="tablewrap"><table><thead><tr><th>Sent</th><th>Agency</th><th>Notice</th><th>Status</th><th><span class="sr-only">Actions</span></th></tr></thead><tbody id="sent"></tbody></table></div>
     </section>
 
     <section class="card" id="contrib-card" hidden>
@@ -61,7 +61,7 @@
       <div class="toolbar"><label class="field"><span>Show</span><select id="c-filter"><option value="new">New</option><option value="accepted">Accepted</option><option value="rejected">Rejected</option><option value="">All</option></select></label>
         <input id="c-note" maxlength="300" placeholder="Note (optional)" aria-label="Note"></div>
       <p id="c-msg" role="status"></p>
-      <div class="tablewrap"><table><thead><tr><th>Sent</th><th>Type</th><th>What they said</th><th>Status</th><th></th></tr></thead><tbody id="contribs"></tbody></table></div>
+      <div class="tablewrap"><table><thead><tr><th>Sent</th><th>Type</th><th>What they said</th><th>Status</th><th><span class="sr-only">Actions</span></th></tr></thead><tbody id="contribs"></tbody></table></div>
     </section>
 
     <section class="card" id="replay-card" hidden>
@@ -69,7 +69,7 @@
       <p class="small muted">Upload replay files from the modelling tools (hour-by-hour flood model runs) or the satellite tools (flood outlines by date). Uploading a replay with the same name replaces it.</p>
       <label class="sbtn primary" for="replay-file">Upload a replay file</label><input id="replay-file" type="file" accept="application/json,.json" class="sr">
       <p id="replay-msg" role="status"></p>
-      <div class="tablewrap"><table><thead><tr><th>Replay</th><th>Kind</th><th>Steps</th><th>Starts</th><th></th></tr></thead><tbody id="replays"></tbody></table></div>
+      <div class="tablewrap"><table><thead><tr><th>Replay</th><th>Kind</th><th>Steps</th><th>Starts</th><th><span class="sr-only">Actions</span></th></tr></thead><tbody id="replays"></tbody></table></div>
     </section>
 
     <section class="card" id="feeds-card" hidden>
@@ -78,7 +78,7 @@
       <label class="switch"><input type="checkbox" id="auto-heat"> <span><b>Automatic heat alerts</b><br><span class="small muted">When the heat model rates a place dangerous for today or tomorrow, people within 40 km get one alert. While approval is on, each alert waits for you under "Waiting for approval".</span></span></label>
       <div class="toolbar"><button class="sbtn" id="snapshot-btn" type="button">Download live data</button><span class="small muted">One file with every country's flood and heat summary, to import in the claude.ai page (Admin → Live data).</span></div>
       <p id="feeds-msg" role="status"></p>
-      <div class="tablewrap"><table><thead><tr><th>Source</th><th>Status</th><th>Last success</th><th>Details</th><th></th></tr></thead><tbody id="feeds"></tbody></table></div>
+      <div class="tablewrap"><table><thead><tr><th>Source</th><th>Status</th><th>Last success</th><th>Details</th><th><span class="sr-only">Actions</span></th></tr></thead><tbody id="feeds"></tbody></table></div>
       <h3>Official warning feeds (CAP)</h3>
       <p class="small">Add each country's weather service and disaster agency feeds from the <a href="https://alertingauthority.wmo.int/" target="_blank" rel="noopener noreferrer">WMO Register of Alerting Authorities</a>. Only https addresses on the public internet are accepted.</p>
       <form id="cap-form" class="formgrid">
@@ -87,7 +87,7 @@
         <label class="field wide"><span>Feed address (Atom or RSS)</span><input id="cap-url" type="url" required placeholder="https://"></label>
         <div class="toolbar wide"><button class="sbtn primary" type="submit">Add feed</button></div>
       </form>
-      <div class="tablewrap"><table><thead><tr><th>Country</th><th>Agency</th><th>Address</th><th></th></tr></thead><tbody id="cap-feeds"></tbody></table></div>
+      <div class="tablewrap"><table><thead><tr><th>Country</th><th>Agency</th><th>Address</th><th><span class="sr-only">Actions</span></th></tr></thead><tbody id="cap-feeds"></tbody></table></div>
     </section>
 
     <section class="card" id="admin" hidden>

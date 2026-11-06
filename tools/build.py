@@ -46,11 +46,11 @@ LOGO = ('<svg width="30" height="30" viewBox="0 0 32 32" aria-hidden="true"><rec
         '<path d="M16 5c4 5.5 7 9.4 7 13.2A7 7 0 0 1 9 18.2C9 14.4 12 10.5 16 5z" fill="var(--accent-fg)"/>'
         '<path d="M5 26c2.5 0 2.5-1.6 5.5-1.6S13 26 16 26s3-1.6 5.5-1.6S24 26 27 26" stroke="var(--accent-fg)" stroke-width="2" fill="none" stroke-linecap="round"/></svg>')
 HEADER = f"""<header class="top"><div class="top-in">
-  <button class="brand" data-act="home" aria-label="Open Tracker home">{LOGO}<span class="brand-name"><b>Open Tracker</b><span class="brand-sub">Flood and heat tracker · open source</span></span></button>
+  <button class="brand" data-act="home" title="Home">{LOGO}<span class="brand-name"><b>Open Tracker</b><span class="brand-sub">Flood and heat tracker · open source</span></span></button>
   <div class="top-tools">
     <button class="tbtn" data-act="alerts" id="bell" type="button">Alerts</button>
     <button class="tbtn" data-act="ts" id="ts" type="button">Text: normal</button>
-    <button class="tbtn" data-act="speak" type="button" aria-label="Read this page aloud">Read aloud</button>
+    <button class="tbtn" data-act="speak" type="button" title="Read this page aloud">Read aloud</button>
     <div class="modes" id="modes" role="group" aria-label="View"></div>
   </div>
 </div></header>

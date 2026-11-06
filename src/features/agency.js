@@ -122,7 +122,7 @@ function viewAgency() {
     <nav class="tabs" aria-label="What to publish">${POST_TYPES.map(([k, n]) => `<button data-act="ag-type" data-k="${k}" aria-pressed="${t === k}">${n}</button>`).join("")}</nav>
     ${form}
     <div class="card"><h2>Your recent posts</h2>
-      <div class="tablewrap"><table><thead><tr><th>When</th><th>Type</th><th>Details</th><th>Status</th><th></th></tr></thead><tbody>
+      <div class="tablewrap"><table><thead><tr><th>When</th><th>Type</th><th>Details</th><th>Status</th><th><span class="sr-only">Actions</span></th></tr></thead><tbody>
       ${AG.ownPosts.map(p => `<tr><td class="num">${esc(fmtDate(p.at))}</td><td>${esc((POST_TYPES.find(x => x[0] === p.type) || [0, p.type])[1])}</td><td>${esc(postSummary(p))}</td><td>${p.retracted ? "Withdrawn" : {live: "Live", pending: "Waiting for approval", rejected: "Not approved"}[APPROVAL.postStatus(p, DB.uid, a)]}</td><td>${p.retracted ? "" : `<button class="sbtn danger" data-act="ag-retract" data-id="${esc(p.id)}">Withdraw</button>`}</td></tr>`).join("") || `<tr><td colspan="5">Nothing published yet.</td></tr>`}
       </tbody></table></div></div>`;
 }

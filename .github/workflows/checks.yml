@@ -52,6 +52,7 @@ jobs:
       - run: python -m playwright install --with-deps chromium
       - run: python3 tools/build.py
       - run: cd dist/opentracker-webapp && npm ci
+      - run: npm ci --prefix tools/lint   # axe-core for the accessibility checks
       - name: Nine scenarios on the claude.ai page
         run: python3 tests/e2e/run.py
       - name: The web app, its console and the 3D projection

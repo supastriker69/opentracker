@@ -320,5 +320,6 @@ async function startDb() {
   anStart(db, DB.uid);
 }
 
+if (!document.documentElement.lang) document.documentElement.lang = "en";   /* the claude.ai page frame sets none: screen readers need it */
 render();
 startDb();

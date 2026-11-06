@@ -946,7 +946,7 @@ function viewAgency() {
     <nav class="tabs" aria-label="What to publish">${POST_TYPES.map(([k, n]) => `<button data-act="ag-type" data-k="${k}" aria-pressed="${t === k}">${n}</button>`).join("")}</nav>
     ${form}
     <div class="card"><h2>Your recent posts</h2>
-      <div class="tablewrap"><table><thead><tr><th>When</th><th>Type</th><th>Details</th><th>Status</th><th></th></tr></thead><tbody>
+      <div class="tablewrap"><table><thead><tr><th>When</th><th>Type</th><th>Details</th><th>Status</th><th><span class="sr-only">Actions</span></th></tr></thead><tbody>
       ${AG.ownPosts.map(p => `<tr><td class="num">${esc(fmtDate(p.at))}</td><td>${esc((POST_TYPES.find(x => x[0] === p.type) || [0, p.type])[1])}</td><td>${esc(postSummary(p))}</td><td>${p.retracted ? "Withdrawn" : {live: "Live", pending: "Waiting for approval", rejected: "Not approved"}[APPROVAL.postStatus(p, DB.uid, a)]}</td><td>${p.retracted ? "" : `<button class="sbtn danger" data-act="ag-retract" data-id="${esc(p.id)}">Withdraw</button>`}</td></tr>`).join("") || `<tr><td colspan="5">Nothing published yet.</td></tr>`}
       </tbody></table></div></div>`;
 }
@@ -1806,7 +1806,7 @@ function adReplays() {
     <p class="small muted">Replays let people watch a flood grow and shrink. Model runs come from the modelling tools (one file per city and storm). Satellite maps come from Copernicus EMS, Copernicus GFM or UNOSAT flood outlines, one date at a time.</p>
     <div class="toolbar"><label class="sbtn primary" for="rp-import" style="display:inline-flex;align-items:center">Import a replay file</label><input id="rp-import" type="file" accept="application/json,.json" class="sr"></div>
     ${UI.admin.confirm?.k === "rm-replay" ? confirmBox() : ""}
-    <div class="tablewrap"><table><thead><tr><th>Replay</th><th>Kind</th><th>Steps</th><th>From</th><th class="n">Most water (km²)</th><th></th></tr></thead><tbody>
+    <div class="tablewrap"><table><thead><tr><th>Replay</th><th>Kind</th><th>Steps</th><th>From</th><th class="n">Most water (km²)</th><th><span class="sr-only">Actions</span></th></tr></thead><tbody>
     ${list.map(r => `<tr><td>${esc(r.title)}</td><td>${esc(REPLAY_KINDS[r.kind] || r.kind)}</td><td class="num">${r.frames.length}</td><td class="small">${esc(frameWhen(r, 0))}</td><td class="n">${Math.max(...r.frames.map(f => f.km2))}</td>
       <td style="white-space:nowrap"><button class="sbtn" data-act="replay-open" data-id="${esc(r.id)}">Watch</button>${canDelete("replays") ? ` <button class="sbtn danger" data-act="ad-ask" data-k="rm-replay" data-id="${esc(r.id)}">Delete</button>` : ""}</td></tr>`).join("") || `<tr><td colspan="6">No replays yet.</td></tr>`}
     </tbody></table></div></div>
@@ -3154,7 +3154,7 @@ function viewAnswer() {
     main = `
       <div class="riskcard lv-${r.level}" id="say">${icon(r.level, 56)}<div><div class="big">${L.word}</div><div class="sub">of flooding ${UI.when === "today" ? "today" : UI.when === "3d" ? "in the next 3 days" : UI.when === "year" ? `in the ${outlookSettings().year} rainy season (about ${Math.round(r.P * 100)}% chance)` : "in the next 3 months"}.</div></div></div>
       <div class="card">
-        <h3>Why?</h3>
+        <h2 class="h3">Why?</h2>
         <ul class="plain why">${r.causes.map(x => `<li>${esc(x.t)}</li>`).join("")}${r.outlook ? `<li>${esc(reachText(r))}</li><li>${esc("Months to watch: " + monthRange(r.months) + ".")}</li>` : ""}${h.why ? `<li>${esc(h.why)}</li>` : ""}</ul>
       </div>
       ${actionsHtml(r.level, p)}`;
@@ -3826,7 +3826,7 @@ function adPeople() {
   <div class="card"><h2>People with access (${members.length})</h2>
     <p class="small muted">The owner always has full access. People who edit data also need Editor access in the Share menu; agency publishers need at least Contributor access.</p>
     ${UI.admin.confirm?.k === "rm-member" ? confirmBox() : ""}
-    <div class="tablewrap"><table><thead><tr><th>Person</th><th>Role</th><th>Agency</th><th>Active</th><th>Added</th><th></th></tr></thead><tbody>
+    <div class="tablewrap"><table><thead><tr><th>Person</th><th>Role</th><th>Agency</th><th>Active</th><th>Added</th><th><span class="sr-only">Actions</span></th></tr></thead><tbody>
     ${members.map(m => `<tr><td>${esc(nameOf(m.id))}</td>
       <td><select data-member="${esc(m.id)}" data-f="role" aria-label="Role">${roleOpts(m.role)}</select></td>
       <td><select data-member="${esc(m.id)}" data-f="agency" aria-label="Agency">${agencyOpts(m.agency)}</select></td>
@@ -3872,7 +3872,7 @@ function adRoles() {
   return `<div class="card"><h2>Roles</h2><p class="small muted">A role is a named set of permissions. Assign roles to people under People.</p>
     <div class="toolbar"><button class="sbtn primary" data-act="role-new">Create a role</button></div>
     ${UI.admin.confirm?.k === "rm-role" ? confirmBox() : ""}
-    <div class="tablewrap"><table><thead><tr><th>Role</th><th>Permissions</th><th class="n">People</th><th></th></tr></thead><tbody>
+    <div class="tablewrap"><table><thead><tr><th>Role</th><th>Permissions</th><th class="n">People</th><th><span class="sr-only">Actions</span></th></tr></thead><tbody>
     ${roles().map(r => `<tr><td><b>${esc(r.n)}</b> ${r.builtin ? `<span class="badge">Built-in</span>` : ""}</td><td class="small">${esc((r.perms || []).map(p => PERMS.find(x => x[0] === p)?.[1] || p).join("; "))}</td><td class="n">${inUse(r.id)}</td>
       <td style="white-space:nowrap"><button class="sbtn" data-act="role-edit" data-id="${esc(r.id)}">${r.builtin ? "View" : "Edit"}</button>${!r.builtin && !inUse(r.id) ? ` <button class="sbtn danger" data-act="ad-ask" data-k="rm-role" data-id="${esc(r.id)}">Delete</button>` : ""}</td></tr>`).join("")}
     </tbody></table></div></div>`;
@@ -3884,7 +3884,7 @@ function adRequests() {
   ensureNames(reqs.map(r => r.id));
   return `<div class="card"><h2>Access requests</h2>
     <p class="small muted">Agency staff ask for publishing access from the Agency portal. Approving links them to the agency; their posts then appear publicly.</p>
-    <div class="tablewrap"><table><thead><tr><th>Person</th><th>Agency</th><th>Their note</th><th>Sent</th><th></th></tr></thead><tbody>
+    <div class="tablewrap"><table><thead><tr><th>Person</th><th>Agency</th><th>Their note</th><th>Sent</th><th><span class="sr-only">Actions</span></th></tr></thead><tbody>
     ${reqs.map(r => `<tr><td>${esc(nameOf(r.id))}</td><td><select id="rq-${esc(r.id)}" aria-label="Agency">${agencyOpts(r.request.agency)}</select></td><td class="small">${esc(r.request.note || "")}</td><td class="num small">${esc(fmtDate(r.request.at))}</td>
       <td style="white-space:nowrap"><button class="sbtn primary" data-act="rq-yes" data-id="${esc(r.id)}">Approve</button> <button class="sbtn danger" data-act="rq-no" data-id="${esc(r.id)}">Decline</button></td></tr>`).join("") || `<tr><td colspan="5">No requests waiting.</td></tr>`}
     </tbody></table></div></div>`;
@@ -3896,7 +3896,7 @@ function adPosts() {
   rows.sort((a, b) => String(b.at).localeCompare(String(a.at)));
   ensureNames(rows.map(r => r.uid));
   return `<div class="card"><h2>Agency posts</h2><p class="small muted">Everything linked agency staff have published. Withdraw a post to remove it from public pages; it stays in this list.</p>
-    <div class="tablewrap"><table><thead><tr><th>When</th><th>Agency</th><th>By</th><th>Type</th><th>Details</th><th>Status</th><th></th></tr></thead><tbody>
+    <div class="tablewrap"><table><thead><tr><th>When</th><th>Agency</th><th>By</th><th>Type</th><th>Details</th><th>Status</th><th><span class="sr-only">Actions</span></th></tr></thead><tbody>
     ${rows.map(p => `<tr><td class="num small">${esc(fmtDate(p.at))}</td><td>${esc(p.agency?.n || "")}</td><td>${esc(nameOf(p.uid))}</td><td>${esc((POST_TYPES.find(x => x[0] === p.type) || [0, p.type])[1])}</td><td class="small">${esc(postSummary(p))}</td><td>${p.retracted ? "Withdrawn" : "Live"}</td>
       <td>${p.retracted ? "" : `<button class="sbtn danger" data-act="post-withdraw" data-uid="${esc(p.uid)}" data-id="${esc(p.id)}">Withdraw</button>`}</td></tr>`).join("") || `<tr><td colspan="7">No agency posts yet.</td></tr>`}
     </tbody></table></div></div>`;
@@ -3935,7 +3935,7 @@ function adAudit() {
       <label class="field"><span>Search</span><input id="au-q" type="search" value="${esc(f.q)}"></label>
     </div>
     <div class="toolbar"><button class="sbtn" data-act="audit-reload">Refresh</button><button class="sbtn" data-act="audit-export">Download as CSV</button><span class="small muted">${rows.length} entries</span></div>
-    <div class="tablewrap"><table><thead><tr><th>When</th><th>Who</th><th>Role</th><th>Action</th><th>Section</th><th>Record</th><th>Fields changed</th><th></th></tr></thead><tbody>
+    <div class="tablewrap"><table><thead><tr><th>When</th><th>Who</th><th>Role</th><th>Action</th><th>Section</th><th>Record</th><th>Fields changed</th><th><span class="sr-only">Actions</span></th></tr></thead><tbody>
     ${rows.slice(0, 400).map((r, i) => `<tr><td class="num small">${esc(fmtDate(r.at))}</td><td>${esc(r.by ? nameOf(r.by) : "—")}</td><td class="small">${esc(r.role || "")}</td><td>${esc(r.act)}</td><td>${esc(tabLabel(r.coll))}</td><td class="small">${esc(r.id)}</td><td class="small">${esc(changedKeys(r.before, r.after))}</td>
       <td style="white-space:nowrap"><button class="sbtn" data-act="audit-open" data-i="${i}">Details</button>${canUndo(r) ? ` <button class="sbtn" data-act="audit-undo" data-i="${i}">Undo</button>` : ""}</td></tr>
       ${AUDIT.open === i ? `<tr><td colspan="8"><div class="grid2"><div><b>Before</b><pre class="formula" style="white-space:pre-wrap">${esc(JSON.stringify(r.before, null, 1))}</pre></div><div><b>After</b><pre class="formula" style="white-space:pre-wrap">${esc(JSON.stringify(r.after, null, 1))}</pre></div></div></td></tr>` : ""}`).join("") || `<tr><td colspan="8">No entries match.</td></tr>`}
@@ -4786,7 +4786,7 @@ function adApprovals() {
   </div>
   <div class="card"><h2>Agency posts waiting (${posts.length})</h2>
     <p class="small muted">Warnings, phone notifications, rain forecasts, dam status and readings sent from the Agency portal.</p>
-    <div class="tablewrap"><table><thead><tr><th>Sent</th><th>Agency</th><th>By</th><th>Type</th><th>Details</th><th></th></tr></thead><tbody>
+    <div class="tablewrap"><table><thead><tr><th>Sent</th><th>Agency</th><th>By</th><th>Type</th><th>Details</th><th><span class="sr-only">Actions</span></th></tr></thead><tbody>
     ${posts.map(p => `<tr><td class="num small">${esc(fmtDate(p.at))}</td><td>${esc(p.agency.n)}</td><td>${esc(nameOf(p.uid))}</td><td>${esc((POST_TYPES.find(x => x[0] === p.type) || [0, p.type])[1])}${p.push ? " + phone alert" : ""}</td><td class="small">${esc(postSummary(p))}</td>
       <td style="white-space:nowrap"><button class="sbtn primary" data-act="ap-post" data-ok="1" data-uid="${esc(p.uid)}" data-id="${esc(p.id)}">Approve</button> <button class="sbtn danger" data-act="ap-post" data-ok="0" data-uid="${esc(p.uid)}" data-id="${esc(p.id)}">Reject</button></td></tr>`).join("") || `<tr><td colspan="6">Nothing waiting.</td></tr>`}
     </tbody></table></div></div>
@@ -5152,5 +5152,6 @@ async function startDb() {
   anStart(db, DB.uid);
 }
 
+if (!document.documentElement.lang) document.documentElement.lang = "en";   /* the claude.ai page frame sets none: screen readers need it */
 render();
 startDb();

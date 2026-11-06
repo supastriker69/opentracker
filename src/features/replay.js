@@ -344,7 +344,7 @@ function adReplays() {
     <p class="small muted">Replays let people watch a flood grow and shrink. Model runs come from the modelling tools (one file per city and storm). Satellite maps come from Copernicus EMS, Copernicus GFM or UNOSAT flood outlines, one date at a time.</p>
     <div class="toolbar"><label class="sbtn primary" for="rp-import" style="display:inline-flex;align-items:center">Import a replay file</label><input id="rp-import" type="file" accept="application/json,.json" class="sr"></div>
     ${UI.admin.confirm?.k === "rm-replay" ? confirmBox() : ""}
-    <div class="tablewrap"><table><thead><tr><th>Replay</th><th>Kind</th><th>Steps</th><th>From</th><th class="n">Most water (km²)</th><th></th></tr></thead><tbody>
+    <div class="tablewrap"><table><thead><tr><th>Replay</th><th>Kind</th><th>Steps</th><th>From</th><th class="n">Most water (km²)</th><th><span class="sr-only">Actions</span></th></tr></thead><tbody>
     ${list.map(r => `<tr><td>${esc(r.title)}</td><td>${esc(REPLAY_KINDS[r.kind] || r.kind)}</td><td class="num">${r.frames.length}</td><td class="small">${esc(frameWhen(r, 0))}</td><td class="n">${Math.max(...r.frames.map(f => f.km2))}</td>
       <td style="white-space:nowrap"><button class="sbtn" data-act="replay-open" data-id="${esc(r.id)}">Watch</button>${canDelete("replays") ? ` <button class="sbtn danger" data-act="ad-ask" data-k="rm-replay" data-id="${esc(r.id)}">Delete</button>` : ""}</td></tr>`).join("") || `<tr><td colspan="6">No replays yet.</td></tr>`}
     </tbody></table></div></div>

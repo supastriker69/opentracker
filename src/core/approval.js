@@ -101,7 +101,7 @@ function adApprovals() {
   </div>
   <div class="card"><h2>Agency posts waiting (${posts.length})</h2>
     <p class="small muted">Warnings, phone notifications, rain forecasts, dam status and readings sent from the Agency portal.</p>
-    <div class="tablewrap"><table><thead><tr><th>Sent</th><th>Agency</th><th>By</th><th>Type</th><th>Details</th><th></th></tr></thead><tbody>
+    <div class="tablewrap"><table><thead><tr><th>Sent</th><th>Agency</th><th>By</th><th>Type</th><th>Details</th><th><span class="sr-only">Actions</span></th></tr></thead><tbody>
     ${posts.map(p => `<tr><td class="num small">${esc(fmtDate(p.at))}</td><td>${esc(p.agency.n)}</td><td>${esc(nameOf(p.uid))}</td><td>${esc((POST_TYPES.find(x => x[0] === p.type) || [0, p.type])[1])}${p.push ? " + phone alert" : ""}</td><td class="small">${esc(postSummary(p))}</td>
       <td style="white-space:nowrap"><button class="sbtn primary" data-act="ap-post" data-ok="1" data-uid="${esc(p.uid)}" data-id="${esc(p.id)}">Approve</button> <button class="sbtn danger" data-act="ap-post" data-ok="0" data-uid="${esc(p.uid)}" data-id="${esc(p.id)}">Reject</button></td></tr>`).join("") || `<tr><td colspan="6">Nothing waiting.</td></tr>`}
     </tbody></table></div></div>

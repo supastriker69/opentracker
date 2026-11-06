@@ -86,7 +86,7 @@ function viewAnswer() {
     main = `
       <div class="riskcard lv-${r.level}" id="say">${icon(r.level, 56)}<div><div class="big">${L.word}</div><div class="sub">of flooding ${UI.when === "today" ? "today" : UI.when === "3d" ? "in the next 3 days" : UI.when === "year" ? `in the ${outlookSettings().year} rainy season (about ${Math.round(r.P * 100)}% chance)` : "in the next 3 months"}.</div></div></div>
       <div class="card">
-        <h3>Why?</h3>
+        <h2 class="h3">Why?</h2>
         <ul class="plain why">${r.causes.map(x => `<li>${esc(x.t)}</li>`).join("")}${r.outlook ? `<li>${esc(reachText(r))}</li><li>${esc("Months to watch: " + monthRange(r.months) + ".")}</li>` : ""}${h.why ? `<li>${esc(h.why)}</li>` : ""}</ul>
       </div>
       ${actionsHtml(r.level, p)}`;

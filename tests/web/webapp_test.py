@@ -155,6 +155,17 @@ def run(base, keys):
         def map_idle():
             until("() => MAPV.ready && !MAPV.map.isMoving()", what="the map to settle")
 
+        AXE = (ROOT / "tools" / "lint" / "node_modules" / "axe-core" / "axe.min.js").read_text()
+
+        def accessible(pg, label):
+            """no WCAG 2.2 A/AA or best-practice violation on the page as it is now"""
+            if not pg.evaluate("!!window.axe"):
+                pg.evaluate(AXE + "\n;0")   # through the test browser itself: the site's security policy rightly refuses injected scripts
+            pg.evaluate("window.scrollTo(0, 0)")
+            found = pg.evaluate("""() => axe.run(document, {preload: false, runOnly: {type: 'tag', values: ['wcag2a','wcag2aa','wcag21a','wcag21aa','wcag22a','wcag22aa','best-practice']}})
+                .then(r => r.violations.map(v => `${v.impact} ${v.id}: ${v.help} (${v.nodes.slice(0, 3).map(n => n.target.join(' ')).join('; ')})`))""")
+            eq(found, [], f"accessibility of {label}")
+
         def console_login(c, key):
             if c.locator("#signout").is_visible():
                 c.click("#signout")
@@ -186,6 +197,7 @@ def run(base, keys):
             c = ctx.new_page(); c.set_default_timeout(TIMEOUT)
             c.on("pageerror", lambda e: errors.append(f"console page error: {e}"))
             c.goto(base + "/console.html")
+            accessible(c, "the push console sign-in")
             console_login(c, keys["agency"])
             see("Ministry of the Interior (Ghana)", "#who", c)
             see("Your notices are checked by an Open Tracker administrator before they reach phones.", "#approval-note", c)
@@ -197,6 +209,7 @@ def run(base, keys):
             expect(c.locator("#pending tr")).to_have_count(1)
             c.click("[data-decide='1']")
             see("Approved. Sending to 0 phones.", "#decide-msg", c)
+            accessible(c, "the push console, signed in as administrator")
             eq([n["title"] for n in api("/api/notices")["json"]["notices"]], ["Evacuate Odaw banks"], "the warning is public")
 
             step("publishing data: personal details are removed")
@@ -216,6 +229,7 @@ def run(base, keys):
             see("Get alerts on your phone"); see("Add to Home Screen")
             page.click("[data-act=wa-locate]")
             see("Your location is saved on this device (near Kaneshie).")
+            accessible(page, "the web app's alerts screen with install steps")
             if page.evaluate("Notification.permission") == "denied":
                 print("    (this browser refuses notifications, so subscribing is covered by the server tests)")
             page.screenshot(path=str(SHOTS / "web-alerts.png"), full_page=True)
@@ -289,6 +303,7 @@ def run(base, keys):
             eq(stats, ["Area under water at the peak", "0.77 km²", "Water on the ground at the peak", "1.2 million m³", "about 470 Olympic pools", "Deepest water", "1.0 m", "Peak", "hour 5"], "the projection's numbers")
             see("Hour 5 · 0.77 km² under water · 1.2 million m³ of water", "#proj-now")
             eq(page.evaluate("MAPV.map.getLayoutProperty('projImg', 'visibility')"), "visible", "the water is drawn over the 3D map")
+            accessible(page, "the 3D projection with its results")
             page.screenshot(path=str(SHOTS / "web-projection.png"), full_page=True)
             page.evaluate("() => { const s = document.querySelector('#proj-slider'); s.value = 2; s.dispatchEvent(new Event('input', {bubbles: true})); }")
             see("Hour 2 · 0 km² under water · 395 thousand m³ of water", "#proj-now")

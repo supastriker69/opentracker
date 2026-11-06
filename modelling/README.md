@@ -4,7 +4,7 @@ Hour-by-hour flood simulations for **Accra, Cape Coast and Lagos** with **SFINCS
 
 ## Run it
 
-You need Python 3.11+ and SFINCS, either the [official Docker image](https://hub.docker.com/r/deltares/sfincs-cpu) or a local build (set `SFINCS_BIN=/path/to/sfincs`). The machine must be able to download the open input data.
+You need Python 3.11+ and SFINCS. The simplest way is `sh modelling/build_sfincs.sh`, which builds SFINCS from a fixed, reviewed revision into `modelling/.sfincs` (needs gfortran and the netCDF Fortran library); then set `SFINCS_BIN=modelling/.sfincs/bin/sfincs`. Or use the [official Docker image](https://hub.docker.com/r/deltares/sfincs-cpu): set `SFINCS_IMAGE` to a fixed version (a version tag or `@sha256:` digest; `latest` is refused so every run can be repeated). The machine must be able to download the open input data.
 
 ```bash
 pip install -r modelling/requirements.txt
@@ -33,4 +33,4 @@ Replay files appear in `modelling/replays/`. Import them in Open Tracker Admin â
 
 ## Checks
 
-`python -m pytest modelling/tests` builds and runs a real SFINCS model on a made-up test terrain (set `SFINCS_BIN`). It checks that the water appears, spreads and drains, and that every hour fits the size limit for phones.
+`python -m pytest modelling/tests` builds and runs a real SFINCS model on a made-up test terrain (set `SFINCS_BIN`; CI builds SFINCS with `build_sfincs.sh` and runs it). It checks that the water appears, spreads and drains, and that every hour fits the size limit for phones.

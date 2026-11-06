@@ -46,14 +46,17 @@ def _download(url: str, dest: Path) -> Path:
         return dest
     dest.parent.mkdir(parents=True, exist_ok=True)
     tmp = dest.with_suffix(".part")
-    with requests.get(url, stream=True, timeout=120) as r:
-        if r.status_code == 404:
-            raise FileNotFoundError(url)   # e.g. a tile that is all sea
-        r.raise_for_status()
-        with open(tmp, "wb") as f:
-            for chunk in r.iter_content(1 << 20):
-                f.write(chunk)
-    tmp.rename(dest)
+    try:
+        with requests.get(url, stream=True, timeout=120) as r:
+            if r.status_code == 404:
+                raise FileNotFoundError(url)   # e.g. a tile that is all sea
+            r.raise_for_status()
+            with open(tmp, "wb") as f:
+                for chunk in r.iter_content(1 << 20):
+                    f.write(chunk)
+        tmp.replace(dest)
+    finally:
+        tmp.unlink(missing_ok=True)   # never leave a half-downloaded tile behind
     return dest
 
 

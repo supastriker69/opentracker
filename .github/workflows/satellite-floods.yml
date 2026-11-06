@@ -22,8 +22,8 @@ jobs:
       AFTER: ${{ inputs.after }}
       BEFORE: ${{ inputs.before }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
         with: {python-version: "3.12"}
       - run: pip install -r satellite/requirements.txt pytest
       - run: python -m pytest satellite/tests -q
@@ -32,5 +32,5 @@ jobs:
           cd satellite
           python sentinel2_flood.py --id "$ID" --title "$TITLE" --country "$COUNTRY" --bbox "$BBOX" --after "$AFTER" \
             ${BEFORE:+--before "$BEFORE"} --out "replays/$ID.json"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with: {name: satellite-replay, path: satellite/replays/*.json}

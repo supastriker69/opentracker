@@ -14,8 +14,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 120
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
         with: {python-version: "3.12"}
       - name: Install HydroMT-SFINCS
         run: pip install -r modelling/requirements.txt
@@ -25,5 +25,5 @@ jobs:
         run: cd modelling && python -m pytest tests -q
       - name: Build, run and turn into replays
         run: cd modelling && python -m opentracker_model ${{ inputs.city }}
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with: {name: flood-replays, path: modelling/replays/*.json}

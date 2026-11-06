@@ -14,10 +14,10 @@ jobs:
     services:
       redis: {image: "redis:7.4.12-alpine", ports: ["6379:6379"]}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
         with: {node-version: "${{ matrix.node }}"}
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with: {python-version: "3.12"}
       - run: pip install ruff==0.16.8
       - run: cd webapp && npm ci
@@ -32,8 +32,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
         with: {python-version: "3.12"}
       - run: pip install -r modelling/requirements.txt -r satellite/requirements.txt pytest
       - run: python -m pytest modelling/tests satellite/tests world/tests -q
@@ -43,10 +43,10 @@ jobs:
     runs-on: ubuntu-24.04   # the newest image that Playwright 1.56 installs Chromium's system packages on
     timeout-minutes: 40
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
         with: {node-version: "24"}
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with: {python-version: "3.12"}
       - run: pip install playwright==1.56.0 numpy==2.3.4 pillow==12.0.0
       - run: python -m playwright install --with-deps chromium
@@ -56,7 +56,7 @@ jobs:
         run: python3 tests/e2e/run.py
       - name: The web app, its console and the 3D projection
         run: python3 tests/web/webapp_test.py
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         if: failure()
         with: {name: browser-test-screens, path: "tests/*/out/"}
 
@@ -65,7 +65,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - run: sudo apt-get update && sudo apt-get install -y redis-server shellcheck
       - run: shellcheck -s sh webapp/ops/*.sh tests/ops/*.sh tools/check.sh
       - run: sh tests/ops/backup_restore_test.sh
@@ -78,7 +78,7 @@ jobs:
     needs: [server]
     defaults: {run: {working-directory: release/opentracker-webapp}}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Settings for a local staging deploy
         run: |
           sed -e 's/^SITE_DOMAIN=.*/SITE_DOMAIN=localhost/' -e 's/^VAPID_SUBJECT=.*/VAPID_SUBJECT=mailto:ci@example.org/' \

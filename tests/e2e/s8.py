@@ -12,9 +12,9 @@ def cells(name):
 
 step("import a model replay and a satellite replay")
 click("[data-act=ad-tab][data-k=replays]")
-page.set_input_files("#rp-import", str(FIX / "test-terrain-replay.json"))
+upload("#rp-import", FIX / "test-terrain-replay.json")
 see("Test terrain: Test storm: 120 mm in 3 hours", "table")
-page.set_input_files("#rp-import", str(FIX / "test-satellite-replay.json"))
+upload("#rp-import", FIX / "test-satellite-replay.json")
 see("Test outlines (not a real flood)", "table")
 rows = page.locator("table").first.locator("tbody tr")
 eq(rows.count(), 2, "two replays listed")
@@ -24,14 +24,14 @@ eq(len(geo_docs(db())), 19, "each step's map layer is stored separately (16 + 3)
 
 step("a file that is not a replay is refused")
 bad = SHOTS / "not-a-replay.json"; bad.write_text('{"app":"x"}')
-page.set_input_files("#rp-import", str(bad))
+upload("#rp-import", bad)
 see("That isn't an Open Tracker replay file.", ".toast")
 eq(rows.count(), 2, "nothing was added")
 
 step("add one dated outline to the satellite replay")
 gj = SHOTS / "one-outline.geojson"
 gj.write_text(json.dumps({"type": "Feature", "properties": {}, "geometry": {"type": "Polygon", "coordinates": [[[13.12, 11.82], [13.18, 11.82], [13.18, 11.88], [13.12, 11.88], [13.12, 11.82]]]}}))
-page.set_input_files("#ro-file", str(gj)); fill("#ro-date", "2024-09-29"); page.select_option("#ro-target", "test-outlines")
+upload("#ro-file", gj); fill("#ro-date", "2024-09-29"); page.select_option("#ro-target", "test-outlines")
 page.click("#ro-form button[type=submit]")
 expect(page.locator("table").first.locator("tbody tr", has_text="Test outlines")).to_contain_text("43.37")
 eq(cells("Test outlines")[1:], ["Satellite map", "4", "11 September 2024", "43.37"], "the satellite replay now has four dates")

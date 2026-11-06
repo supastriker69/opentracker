@@ -54,12 +54,11 @@ def simple_screens(tag):
 
 as_role("owner", reset=True)
 seed()
-page.set_input_files("#rp-import", str(ROOT / "webapp" / "test" / "fixtures" / "test-satellite-replay.json")) if page.locator("#rp-import").count() else None
 click("[data-act=ad-tab][data-k=live]")
-page.set_input_files("#hz-import", str(ROOT / "webapp" / "test" / "fixtures" / "test-snapshot.json"))
+upload("#hz-import", ROOT / "webapp" / "test" / "fixtures" / "test-snapshot.json")
 see("Imported live data", ".toast")
 click("[data-act=ad-tab][data-k=replays]")
-page.set_input_files("#rp-import", str(ROOT / "webapp" / "test" / "fixtures" / "test-satellite-replay.json"))
+upload("#rp-import", ROOT / "webapp" / "test" / "fixtures" / "test-satellite-replay.json")
 see("Test outlines", "table")
 add_person("ngozi", "agency-publisher", "nadmo")
 db_until(lambda d: d.get("members/u-agent", {}).get("agency") == "nadmo", "Ngozi is a NADMO publisher")

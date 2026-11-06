@@ -104,6 +104,22 @@ def run_scenario(b, name):
         page.reload()
         until("() => DB.settled && document.querySelector('#modes button') && document.querySelector('h1')", what="the app to start and show the shared data")
 
+    def settled(quiet_ms=400, most_ms=5000):
+        """the page has stopped redrawing: nothing on it was added or removed for quiet_ms (at most most_ms)"""
+        page.evaluate("""([q, most]) => new Promise(resolve => {
+            const o = new MutationObserver(() => { clearTimeout(t); t = setTimeout(done, q); });
+            const cap = setTimeout(done, most);
+            let t = setTimeout(done, q);
+            function done() { o.disconnect(); clearTimeout(t); clearTimeout(cap); resolve(); }
+            o.observe(document.body, {subtree: true, childList: true});
+        })""", [quiet_ms, most_ms])
+
+    def upload(sel, path):
+        """picks a file once the page has stopped redrawing: a redraw between finding the file input and
+        giving it the file would hand the file to an input no longer on the page, and the pick would be lost"""
+        settled()
+        page.set_input_files(sel, str(path))
+
     def click(sel, nth=0):
         page.locator(sel).nth(nth).click()
 
@@ -161,7 +177,7 @@ def run_scenario(b, name):
         print("  -", label, flush=True)
 
     scope = dict(globals(), page=page, check=check, eq=eq, see=see, gone=gone, until=until, db=db, db_until=db_until,
-                 as_role=as_role, click=click, fill=fill, txt=txt, modes=modes, modes_are=modes_are, seed=seed, add_person=add_person, find_row=find_row,
+                 as_role=as_role, click=click, fill=fill, upload=upload, settled=settled, txt=txt, modes=modes, modes_are=modes_are, seed=seed, add_person=add_person, find_row=find_row,
                  src_count=src_count, map_idle=map_idle, shot=shot, step=step, expect=expect, ROOT=ROOT, SHOTS=SHOTS, json=json, pathlib=pathlib)
     failure = None
     try:
@@ -171,6 +187,7 @@ def run_scenario(b, name):
         try:   # what the page showed when the check failed
             page.screenshot(path=str(SHOTS / f"failure-{name}.png"), full_page=True, timeout=10_000)
             failure += "\npage at failure: " + page.inner_text("body")[:800].replace("\n", " | ")
+            failure += "\nmessages shown: " + " | ".join(page.locator(".toast").all_inner_texts())
         except Exception:
             pass
     ctx.close()

@@ -87,10 +87,10 @@ for w in snap["world"].get("countries", {}).values():
                 w[k] = P + w[k]
 (SHOTS / "hostile-live-data.json").write_text(json.dumps(snap))
 click("[data-act=ad-tab][data-k=replays]")
-page.set_input_files("#rp-import", str(SHOTS / "hostile-replay.json"))
+upload("#rp-import", SHOTS / "hostile-replay.json")
 see("replay", "table")
 click("[data-act=ad-tab][data-k=live]")
-page.set_input_files("#hz-import", str(SHOTS / "hostile-live-data.json"))
+upload("#hz-import", SHOTS / "hostile-live-data.json")
 see("Imported live data for 3 countries.", ".toast")
 
 step("every admin tab shows the hostile data as text")

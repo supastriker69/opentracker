@@ -1,0 +1,279 @@
+{
+ "thresholds": {
+  "csi": 0.65,
+  "area_ratio": [
+   0.75,
+   1.33
+  ],
+  "volume_ratio": [
+   0.75,
+   1.33
+  ],
+  "arrival_shift_h": 1,
+  "depth_mae_m": 0.15
+ },
+ "results": [
+  {
+   "case": "coast",
+   "about": "coast with a river valley and a hollow; sea at high tide",
+   "rain": "120 mm in 3 h",
+   "sea_m": 0.5,
+   "csi": 0.922,
+   "csi_knee": 0.919,
+   "hit_rate": 0.935,
+   "false_alarm_ratio": 0.015,
+   "peak_km2": {
+    "sfincs": 0.443,
+    "floodsim": 0.44
+   },
+   "area_ratio": 0.994,
+   "peak_m3": {
+    "sfincs": 840289,
+    "floodsim": 735882
+   },
+   "volume_ratio": 0.876,
+   "peak_hour": {
+    "sfincs": 3,
+    "floodsim": 3
+   },
+   "arrival_hour": {
+    "sfincs": 2,
+    "floodsim": 2
+   },
+   "arrival_shift_h": 0,
+   "depth_mae_m": 0.022,
+   "area_km2_by_hour": {
+    "sfincs": [
+     0.0,
+     0.0,
+     0.367,
+     0.443,
+     0.412,
+     0.315,
+     0.247,
+     0.22,
+     0.193,
+     0.172,
+     0.168,
+     0.158,
+     0.152
+    ],
+    "floodsim": [
+     0.0,
+     0.003,
+     0.37,
+     0.44,
+     0.39,
+     0.29,
+     0.24,
+     0.198,
+     0.172,
+     0.168,
+     0.158,
+     0.152,
+     0.147
+    ]
+   },
+   "land_cells": 3798,
+   "fails": []
+  },
+  {
+   "case": "basin",
+   "about": "inland bowl that fills and spills",
+   "rain": "150 mm in 6 h",
+   "sea_m": null,
+   "csi": 0.676,
+   "csi_knee": 0.889,
+   "hit_rate": 0.758,
+   "false_alarm_ratio": 0.138,
+   "peak_km2": {
+    "sfincs": 1.768,
+    "floodsim": 1.482
+   },
+   "area_ratio": 0.839,
+   "peak_m3": {
+    "sfincs": 1583608,
+    "floodsim": 1630282
+   },
+   "volume_ratio": 1.029,
+   "peak_hour": {
+    "sfincs": 5,
+    "floodsim": 15
+   },
+   "arrival_hour": {
+    "sfincs": 4,
+    "floodsim": 4
+   },
+   "arrival_shift_h": 0,
+   "depth_mae_m": 0.073,
+   "area_km2_by_hour": {
+    "sfincs": [
+     0.0,
+     0.0,
+     0.013,
+     0.223,
+     1.038,
+     1.768,
+     1.14,
+     1.143,
+     1.215,
+     1.265,
+     1.295,
+     1.31,
+     1.325,
+     1.33,
+     1.33,
+     1.33
+    ],
+    "floodsim": [
+     0.0,
+     0.0,
+     0.028,
+     0.287,
+     1.208,
+     1.34,
+     1.27,
+     1.308,
+     1.375,
+     1.415,
+     1.442,
+     1.468,
+     1.472,
+     1.475,
+     1.478,
+     1.482
+    ]
+   },
+   "land_cells": 4225,
+   "fails": []
+  },
+  {
+   "case": "streets",
+   "about": "flat inland town, partly below sea level, with streets lower than the blocks",
+   "rain": "100 mm in 3 h",
+   "sea_m": null,
+   "csi": 0.92,
+   "csi_knee": 0.5,
+   "hit_rate": 0.958,
+   "false_alarm_ratio": 0.042,
+   "peak_km2": {
+    "sfincs": 1.725,
+    "floodsim": 1.685
+   },
+   "area_ratio": 0.977,
+   "peak_m3": {
+    "sfincs": 690739,
+    "floodsim": 677252
+   },
+   "volume_ratio": 0.98,
+   "peak_hour": {
+    "sfincs": 3,
+    "floodsim": 3
+   },
+   "arrival_hour": {
+    "sfincs": 2,
+    "floodsim": 2
+   },
+   "arrival_shift_h": 0,
+   "depth_mae_m": 0.009,
+   "area_km2_by_hour": {
+    "sfincs": [
+     0.0,
+     0.0,
+     1.403,
+     1.725,
+     1.215,
+     0.765,
+     0.438,
+     0.193,
+     0.083,
+     0.02,
+     0.007,
+     0.003,
+     0.0
+    ],
+    "floodsim": [
+     0.0,
+     0.0,
+     1.492,
+     1.685,
+     1.11,
+     0.625,
+     0.305,
+     0.105,
+     0.025,
+     0.007,
+     0.003,
+     0.0,
+     0.0
+    ]
+   },
+   "land_cells": 3622,
+   "fails": []
+  },
+  {
+   "case": "gully",
+   "about": "steep valley: fast runoff",
+   "rain": "120 mm in 3 h",
+   "sea_m": null,
+   "csi": 0.887,
+   "csi_knee": 0.602,
+   "hit_rate": 0.957,
+   "false_alarm_ratio": 0.076,
+   "peak_km2": {
+    "sfincs": 0.352,
+    "floodsim": 0.367
+   },
+   "area_ratio": 1.043,
+   "peak_m3": {
+    "sfincs": 868446,
+    "floodsim": 824495
+   },
+   "volume_ratio": 0.949,
+   "peak_hour": {
+    "sfincs": 3,
+    "floodsim": 2
+   },
+   "arrival_hour": {
+    "sfincs": 2,
+    "floodsim": 2
+   },
+   "arrival_shift_h": 0,
+   "depth_mae_m": 0.098,
+   "area_km2_by_hour": {
+    "sfincs": [
+     0.0,
+     0.0,
+     0.338,
+     0.352,
+     0.158,
+     0.06,
+     0.037,
+     0.015,
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ],
+    "floodsim": [
+     0.0,
+     0.0,
+     0.367,
+     0.367,
+     0.193,
+     0.092,
+     0.055,
+     0.03,
+     0.005,
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   },
+   "land_cells": 4225,
+   "fails": []
+  }
+ ]
+}

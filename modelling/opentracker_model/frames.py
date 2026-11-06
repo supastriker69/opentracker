@@ -12,7 +12,13 @@ from pyproj import Transformer
 from rasterio.features import shapes
 from rasterio.transform import Affine
 from shapely.geometry import mapping, shape
-from shapely.ops import transform as reproject, unary_union
+import shapely
+from shapely.ops import unary_union
+
+
+def reproject(project, geom):
+    """geom with every point passed through project(x, y) -> (x, y), e.g. a pyproj Transformer's transform"""
+    return shapely.transform(geom, lambda xy: np.column_stack(project(xy[:, 0], xy[:, 1])))
 
 CLASSES = [  # depth in metres; words people understand
     {"k": 1, "min": 0.15, "max": 0.3, "n": "Ankle to knee deep"},

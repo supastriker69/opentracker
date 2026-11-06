@@ -46,6 +46,7 @@ def build(city: dict, sc: Scenario, catalog: Path, root: Path, after_hours: floa
                    dtmapout=3600, dtout=3600, dtmaxout=99999999, alpha=0.5, qinf=float(city.get("qinf_mm_h", 2)))
     m.setup_grid_from_region(region={"bbox": city["bbox"]}, res=float(city["res"]), crs="utm")
     m.setup_dep(datasets_dep=[{"elevtn": "dem"}])
+    m.setup_config(zsini=start_level(city, float(m.grid["dep"].min())))
     m.setup_mask_active(zmin=-5)                                    # sea deeper than 5 m is left out
     if city.get("tide_m") is not None:
         m.setup_mask_bounds(btype="waterlevel", zmax=0.5)           # low cells at the edge exchange water with the sea
@@ -65,6 +66,15 @@ def build(city: dict, sc: Scenario, catalog: Path, root: Path, after_hours: floa
     return m
 
 
+def start_level(city: dict, lowest_ground: float) -> float:
+    """The water level everywhere at the start. At the coast: the level the sea is held at (not 0 m then rising, which
+    would push a false surge onto low ground). Inland: below the lowest ground, so the model starts dry even where
+    the land lies below sea level (SFINCS's default of 0 m would fill every such cell before any rain)."""
+    if city.get("tide_m") is not None:
+        return float(city["tide_m"])
+    return min(0.0, round(lowest_ground - 1.0, 2))
+
+
 def _coast_point(m: SfincsModel):
     """One water-level point at the middle of the coastal boundary cells."""
     import geopandas as gpd
@@ -77,14 +87,21 @@ def _coast_point(m: SfincsModel):
 
 
 def run(root: Path, sfincs_bin: str | None = None) -> Path:
-    """Runs SFINCS in `root`: a local binary (SFINCS_BIN) or the official Docker image."""
+    """Runs SFINCS in `root`: a local program (SFINCS_BIN, built by build_sfincs.sh) or a Docker image you chose and
+    pinned (SFINCS_IMAGE, e.g. deltares/sfincs-cpu@sha256:...). A moving tag such as :latest is refused, so a model
+    run can always be repeated with the same model code."""
     exe = sfincs_bin or os.environ.get("SFINCS_BIN")
+    image = os.environ.get("SFINCS_IMAGE", "")
     if exe:
         cmd = [exe]
-    elif shutil.which("docker"):
-        cmd = ["docker", "run", "--rm", "-v", f"{root.resolve()}:/data", "deltares/sfincs-cpu:latest"]
+    elif image:
+        if "@sha256:" not in image and (":" not in image.rsplit("/", 1)[-1] or image.endswith(":latest")):
+            raise RuntimeError(f"SFINCS_IMAGE must name a fixed version (a tag other than latest, or @sha256:...), not {image!r}.")
+        if not shutil.which("docker"):
+            raise RuntimeError("SFINCS_IMAGE is set but Docker is not installed.")
+        cmd = ["docker", "run", "--rm", "-v", f"{root.resolve()}:/data", image]
     else:
-        raise RuntimeError("SFINCS not found: set SFINCS_BIN to the sfincs program, or install Docker.")
+        raise RuntimeError("SFINCS not found: run sh modelling/build_sfincs.sh and set SFINCS_BIN, or set SFINCS_IMAGE to a pinned Docker image.")
     log = root / "sfincs.log"
     with open(log, "w") as f:
         subprocess.run(cmd, cwd=root, stdout=f, stderr=subprocess.STDOUT, check=True)

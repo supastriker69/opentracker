@@ -1,0 +1,67 @@
+# Real-world flood check: run the SFINCS city model and compare it with the water Sentinel-2 saw (docs/VALIDATION.md).
+# Needs the internet (Copernicus DEM, ESA WorldCover and Sentinel-2 on AWS Open Data), so it runs here, not in Checks.
+name: Real-world flood check
+on:
+  schedule: [{cron: "17 4 1 * *"}]   # the 1st of each month
+  workflow_dispatch:
+    inputs:
+      city: {description: "City key in modelling/cities.yml", default: "accra"}
+      scenario: {description: "Scenario key", default: "jun29-2026"}
+      after: {description: "Flood dates for satellite images (YYYY-MM-DD/YYYY-MM-DD)", default: "2026-06-29/2026-07-10"}
+      before: {description: "Dry dates for normal water", default: "2026-01-01/2026-02-28"}
+      min_csi: {description: "Fail below this CSI (blank: report only)", default: ""}
+permissions: {contents: read}
+concurrency: {group: validate-real, cancel-in-progress: false}
+
+jobs:
+  check:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    env:
+      CITY: ${{ inputs.city || 'accra' }}
+      SCENARIO: ${{ inputs.scenario || 'jun29-2026' }}
+      AFTER: ${{ inputs.after || '2026-06-29/2026-07-10' }}
+      BEFORE: ${{ inputs.before || '2026-01-01/2026-02-28' }}
+      MIN_CSI: ${{ inputs.min_csi }}
+      SFINCS_BIN: ${{ github.workspace }}/modelling/.sfincs/bin/sfincs
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with: {python-version: "3.13"}
+      - run: sudo apt-get update && sudo apt-get install -y gfortran autoconf automake libtool make libnetcdff-dev
+      - uses: actions/cache@v6
+        with: {path: modelling/.sfincs, key: "sfincs-ubuntu-24.04-${{ hashFiles('modelling/build_sfincs.sh') }}"}
+      - run: sh modelling/build_sfincs.sh
+      - run: pip install -c tools/python-constraints.txt -r modelling/requirements.txt -r satellite/requirements.txt
+      - name: Inputs are well formed
+        run: |
+          echo "$CITY$SCENARIO" | grep -Eq '^[a-z0-9-]+$' || { echo "city and scenario are lowercase keys"; exit 1; }
+          for d in "$AFTER" "$BEFORE"; do echo "$d" | grep -Eq '^[0-9]{4}-[0-9]{2}-[0-9]{2}/[0-9]{4}-[0-9]{2}-[0-9]{2}$' || { echo "bad dates: $d"; exit 1; }; done
+          [ -z "$MIN_CSI" ] || echo "$MIN_CSI" | grep -Eq '^(0(\.[0-9]+)?|1(\.0+)?)$' || { echo "min_csi is a number from 0 to 1"; exit 1; }
+      - name: The city flood model (SFINCS)
+        working-directory: modelling
+        run: python -m opentracker_model "$CITY" "$SCENARIO" --out ../out
+      - name: The water Sentinel-2 saw
+        id: satellite
+        continue-on-error: true   # clouds can hide every scene; the model result is still reported
+        run: |
+          bbox=$(python -c "import yaml,sys; print(','.join(map(str, yaml.safe_load(open('modelling/cities.yml'))['cities'][sys.argv[1]]['bbox'])))" "$CITY")
+          country=$(python -c "import yaml,sys; print(yaml.safe_load(open('modelling/cities.yml'))['cities'][sys.argv[1]]['country'])" "$CITY")
+          python satellite/sentinel2_flood.py --id "$CITY-s2" --title "Sentinel-2 water, $CITY" --country "$country" \
+              --bbox "$bbox" --after "$AFTER" --before "$BEFORE" --out out/satellite.json
+      - name: Compare
+        if: steps.satellite.outcome == 'success'
+        run: |
+          python satellite/compare_extent.py "out/$CITY-$SCENARIO.json" out/satellite.json --out out/report.json ${MIN_CSI:+--min-csi "$MIN_CSI"} | tee out/report.txt
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "### $CITY, $SCENARIO against Sentinel-2 ($AFTER)"
+            if [ -f out/report.txt ]; then sed 's/^/- /' out/report.txt
+            else echo "No comparison: Sentinel-2 found no clear day with flood water in these dates (see the log). Try Sentinel-1 or GFM outlines (docs/VALIDATION.md)."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v6
+        if: always()
+        with: {name: "flood-check-${{ env.CITY }}-${{ env.SCENARIO }}", path: out/, if-no-files-found: ignore}

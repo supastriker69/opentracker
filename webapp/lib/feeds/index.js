@@ -38,7 +38,7 @@ const hash = v => crypto.createHash("sha1").update(JSON.stringify(v)).digest("ba
 const slug = s => String(s).toLowerCase().normalize("NFKD").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 30);
 
 /* places: the world place list (capitals first); countries: the world country table */
-function createFeeds({cfg, store, push, places = [], countries = [], net = createNet(), log = console, holder = String(process.pid), now = () => new Date()}) {
+function createFeeds({cfg, store, push, places = [], countries = [], net = createNet(), log = console, metrics = null, holder = String(process.pid), now = () => new Date()}) {
   const iso3to2 = Object.fromEntries(countries.map(c => [c.iso3, c.iso2]));
   const countryCodes = countries.length ? countries.map(c => c.iso2) : [...new Set(places.map(p => p.c))];
   const feedPlaces = places.slice(0, cfg.feedPlaces);
@@ -190,7 +190,7 @@ function createFeeds({cfg, store, push, places = [], countries = [], net = creat
     {id: "satellite-scenes", everyMs: 6 * HOUR, run: runScenes},
     {id: "weatherex", everyMs: 6 * HOUR, run: runWeatherex}
   ];
-  const scheduler = createScheduler({store, holder, log});
+  const scheduler = createScheduler({store, holder, log, metrics});
   DEFS.filter(d => enabled(d.id)).forEach(d => scheduler.add(d));
 
   /* ---------- publishing the per-country summaries ---------- */
@@ -253,6 +253,7 @@ function createFeeds({cfg, store, push, places = [], countries = [], net = creat
     stop() { scheduler.stop(); clearTimeout(timer); },
     runNow: id => scheduler.runNow(id),
     feeds: () => scheduler.ids(),
+    schedule: () => Object.fromEntries(DEFS.filter(d => enabled(d.id)).map(d => [d.id, d.everyMs])),   /* id → how often it runs */
     sources,
     capFeeds,
     publish(which) { const run = publishing.then(() => publish(which || "all")); publishing = run.catch(() => {}); return run; },

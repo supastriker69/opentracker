@@ -64,7 +64,7 @@ function sameOrigin(origin, host) { try { return new URL(origin).host === host; 
 function bearer(req) { const m = /^Bearer\s+(\S+)$/.exec(req.headers.authorization || ""); return m ? m[1] : null; }
 
 /* ---------- static files ---------- */
-const TYPES = {".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8", ".json": "application/json",
+const TYPES = {".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".mjs": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8", ".json": "application/json",
   ".webmanifest": "application/manifest+json", ".png": "image/png", ".svg": "image/svg+xml", ".ico": "image/x-icon", ".txt": "text/plain; charset=utf-8"};
 function serveStatic(req, res, publicDir, url) {
   let rel = url.pathname === "/" ? "/index.html" : url.pathname;

@@ -8,7 +8,7 @@
 const healthKey = id => `feed-health:${id}`;
 const MINUTE = 60e3;
 
-function createScheduler({store, holder, log = console, random = Math.random, now = Date.now}) {
+function createScheduler({store, holder, log = console, metrics = null, random = Math.random, now = Date.now}) {
   const jobs = new Map();
   let stopped = false;
 
@@ -53,9 +53,10 @@ function createScheduler({store, holder, log = console, random = Math.random, no
         const prev = (await store.getDoc(healthKey(job.def.id)).catch(() => null)) || {};
         health = Object.assign({}, prev, {status: "failing", lastRun: new Date(started).toISOString(), ms: now() - started,
           error: String(e && e.message || e).slice(0, 300), failures: job.failures});
-        log.error(`feed ${job.def.id}:`, health.error);
+        log.error(`feed ${job.def.id}:`, health.error, {feed: job.def.id, failures: job.failures});
       }
       health.nextRun = new Date(now() + wait).toISOString();
+      if (metrics) metrics.inc("opentracker_feed_runs_total", {feed: job.def.id, result: health.status});
       await store.putDoc(healthKey(job.def.id), health).catch(e => log.error(`feed ${job.def.id}: could not save health:`, e.message));
     })();
     try { await job.running; } finally { job.running = null; }

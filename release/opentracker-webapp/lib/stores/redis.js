@@ -14,22 +14,24 @@ const K = {
   notice: "ot:notice", notices: "ot:notices", delivery: id => "ot:delivery:" + id,
   data: "ot:data", weather: "ot:weather", contrib: "ot:contrib", contribs: "ot:contribs",
   replay: "ot:replay", geoLayer: id => "ot:geo:" + id,
-  rate: k => "ot:rate:" + k, audit: "ot:audit", queue: "ot:pushq", lock: n => "ot:lock:" + n, doc: k => "ot:doc:" + k
+  rate: k => "ot:rate:" + k, audit: "ot:audit", queue: "ot:pushq", lock: n => "ot:lock:" + n, doc: k => "ot:doc:" + k,
+  metrics: "ot:metrics"
 };
 const J = s => (s ? JSON.parse(s) : null);
 
 class RedisStore {
-  constructor(url) { this.url = url; }
+  constructor(url, log = console) { this.url = url; this.logger = log; }
   async init() {
     this.r = createClient({url: this.url, socket: {reconnectStrategy: n => Math.min(n * 200, 5000)}});
-    this.r.on("error", e => console.error("Redis:", e.message));
+    this.r.on("error", e => this.logger.error("Redis:", e.message));
     await this.r.connect();
     this.blocking = this.r.duplicate();   /* blocking queue reads get their own connection */
-    this.blocking.on("error", e => console.error("Redis:", e.message));
+    this.blocking.on("error", e => this.logger.error("Redis:", e.message));
     await this.blocking.connect();
     return this;
   }
-  async close() { await Promise.allSettled([this.r.quit(), this.blocking.quit()]); }
+  /* the main connection finishes commands already sent; the queue connection is only waiting for work, so it stops at once */
+  async close() { this.blocking.destroy(); await this.r.close().catch(() => {}); }
   async ping() { return (await this.r.ping()) === "PONG"; }
 
   async vapid() {
@@ -155,6 +157,17 @@ class RedisStore {
   /* notification jobs shared by every sender */
   async pushJobs(jobs) { if (jobs.length) await this.r.lPush(K.queue, jobs.map(j => JSON.stringify(j))); }
   async popJob(timeoutSec) { const r = await this.blocking.brPop(K.queue, timeoutSec); return r ? J(r.element) : null; }
+  async queueLength() { return this.r.lLen(K.queue); }
+  /* monitoring totals shared by every server (lib/metrics.js) */
+  async addMetrics(deltas) {
+    const m = this.r.multi();
+    for (const [k, v] of Object.entries(deltas)) m.hIncrByFloat(K.metrics, k, v);
+    await m.exec();
+  }
+  async getMetrics() {
+    const h = await this.r.hGetAll(K.metrics);
+    return Object.fromEntries(Object.entries(h).map(([k, v]) => [k, Number(v)]));
+  }
   /* one holder at a time, e.g. for the weather poller */
   async lock(name, ttlMs, holder) {
     const ok = await this.r.set(K.lock(name), holder, {NX: true, PX: ttlMs});

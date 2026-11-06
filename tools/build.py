@@ -5,6 +5,7 @@
   dist/opentracker.html        the single-page app published on claude.ai (shared database, admin, agencies)
   dist/opentracker-webapp/     the installable web app + push server to host on your own domain
   dist/opentracker-webapp.zip  the same folder, zipped
+  release/opentracker-webapp/  the same folder, committed (CI checks it matches the source)
 """
 import hashlib, json, pathlib, shutil, subprocess, zipfile
 
@@ -122,6 +123,7 @@ def build_webapp(js, geo, css, version):
     (pub / "app.js").write_text('"use strict";\nconst MAPLIB_URL = "/vendor/maplibre-gl.mjs";\n' + js, encoding="utf-8")
     (pub / "geo.js").write_text('"use strict";\n' + geo, encoding="utf-8")
     (pub / "app.css").write_text(BASE_RESET + css, encoding="utf-8")
+    (out / "VERSION").write_text(version + "\n", encoding="utf-8")   # ops/deploy.sh tags the image with it
     (pub / "robots.txt").write_text("User-agent: *\nDisallow: /console.html\nDisallow: /api/\n", encoding="utf-8")
     (pub / "areas.json").write_text(json.dumps(extract_areas(), separators=(",", ":")), encoding="utf-8")
     (pub / "zones.json").write_text(json.dumps(extract_zones(), separators=(",", ":")), encoding="utf-8")
@@ -194,10 +196,14 @@ def main():
         shutil.rmtree(DIST)
     DIST.mkdir()
     js, geo, css = app_js(), geo_js(), read(SRC / "ui" / "style.css")
-    version = hashlib.sha256("".join([js, css] + [read(WEB / "client" / f) for f in ("webapp.js", "sw.js", "console.js", "console.html")]).encode()).hexdigest()[:10]
+    version = hashlib.sha256("".join([js, css, MAPLIB_VERSION] + [read(WEB / "client" / f) for f in ("webapp.js", "sw.js", "console.js", "console.html")]).encode()).hexdigest()[:10]
     html = build_artifact(js, geo, css)
     out = build_webapp(js, geo, css, version)
     (DIST / "app.check.js").write_text('"use strict";\nconst GEO = {};\nconst WORLD = {countries: {}, places: []};\nconst MAPLIB_URL = "";\n' + read(WEB / "client" / "webapp.js") + "\n" + js, encoding="utf-8")
+    release = ROOT / "release" / "opentracker-webapp"   # the built web app, committed so it can be deployed straight from the repository
+    if release.exists():
+        shutil.rmtree(release)
+    shutil.copytree(out, release, ignore=shutil.ignore_patterns("node_modules"))
     print(f"dist/opentracker.html  {len(html) / 1024:.0f} KB")
     print(f"dist/opentracker-webapp/  version {version}  ({sum(f.stat().st_size for f in out.rglob('*') if f.is_file()) / 1024:.0f} KB)")
 

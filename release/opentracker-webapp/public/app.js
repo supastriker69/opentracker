@@ -1,4 +1,5 @@
 "use strict";
+const MAPLIB_URL = "/vendor/maplibre-gl.mjs";
 /* ---- data/data.js ---- */
 /* Open Tracker prototype data. Locations are approximate centre points of areas named in
    published flood reports (see each event's source). Built 17 Oct 2026. */
@@ -2742,6 +2743,21 @@ const mapCfg = () => (window.WEBAPP && typeof window.WEBAPP.mapConfig === "funct
 const heatColor = lv => cssv("--heat-" + Math.max(0, Math.min(4, lv | 0)));
 const floodColor = lv => cssv(lv === "warning" ? "--flood-warning" : "--flood-watch");
 
+/* MapLibre is an ES module, loaded the first time a map is shown. MAPLIB_URL is set by the build:
+   the web app's own copy, or the CDN copy for the claude.ai page. */
+const MAPLIB = {state: "idle", lib: null};   /* idle → loading → ready | failed */
+function loadMapLib() {
+  if (MAPLIB.state !== "idle") return;
+  MAPLIB.state = "loading";
+  import(MAPLIB_URL).then(lib => {
+    MAPLIB.lib = lib; MAPLIB.state = "ready";
+    if (MAPV.el && MAPV.el.isConnected) mapMount(MAPV.el);   /* the screen that asked for a map is still showing */
+  }, () => {
+    MAPLIB.state = "failed";
+    if (MAPV.el && MAPV.el.isConnected) mapMount(MAPV.el);
+  });
+}
+
 function levelColor(lv) { return cssv({low: "--low", med: "--med", high: "--high", vhigh: "--vhigh"}[lv] || "--none"); }
 
 function drawIcon(kind, color) {
@@ -2817,12 +2833,14 @@ function paintTheme() {
 function mapMount(holder, opts) {
   if (!holder) return;
   if (!MAPV.el) { MAPV.el = document.createElement("div"); MAPV.el.id = "map-canvas"; MAPV.el.style.cssText = "position:absolute;inset:0"; }
-  holder.replaceWith(MAPV.el);
+  if (holder !== MAPV.el) holder.replaceWith(MAPV.el);
   if (MAPV.failed) { MAPV.el.innerHTML = `<div class="mapmsg">The map cannot be shown on this device. The list below shows the same areas.</div>`; return; }
   if (!MAPV.map) {
-    if (!window.maplibregl) { MAPV.failed = true; MAPV.el.innerHTML = `<div class="mapmsg">The map could not load. The list below shows the same areas.</div>`; return; }
+    if (MAPLIB.state === "failed") { MAPV.failed = true; MAPV.el.innerHTML = `<div class="mapmsg">The map could not load. The list below shows the same areas.</div>`; return; }
+    if (MAPLIB.state !== "ready") { MAPV.el.innerHTML = `<div class="mapmsg">Loading the map…</div>`; loadMapLib(); return; }
+    MAPV.el.textContent = "";
     try {
-      MAPV.map = new maplibregl.Map({
+      MAPV.map = new MAPLIB.lib.Map({
         container: MAPV.el, attributionControl: false, maxPitch: 75, center: [3, 8], zoom: 4.6, minZoom: 1, maxZoom: 17,
         style: Object.assign({version: 8, sources: {}, layers: [{id: "bg", type: "background", paint: {"background-color": cssv("--sea")}}]}, mapCfg()?.glyphs ? {glyphs: mapCfg().glyphs} : {})
       });
@@ -2906,9 +2924,9 @@ function mapUpdate(view, fit) {
   m.getSource("dams").setData(FC((view.dams || []).map(d => PT(d.ll, {icon: "i-dam", rank: 1}))));
   m.getSource("sel").setData(FC(view.sel ? [PT(view.sel.ll, {})] : []));
   if (MAPV.marker) { MAPV.marker.remove(); MAPV.marker = null; }
-  if (view.sel && window.maplibregl) {
+  if (view.sel && MAPLIB.lib) {
     const d = document.createElement("div"); d.className = "mk"; d.textContent = view.sel.n;
-    MAPV.marker = new maplibregl.Marker({element: d, anchor: "bottom"}).setLngLat(view.sel.ll).addTo(m);
+    MAPV.marker = new MAPLIB.lib.Marker({element: d, anchor: "bottom"}).setLngLat(view.sel.ll).addTo(m);
   }
   mapHazards(view);
   mapStreets(view);

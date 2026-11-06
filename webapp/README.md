@@ -13,7 +13,10 @@ PORT=8080 node server.js
 
 Open `http://localhost:8080`. The push console is at `/console.html`.
 
-Real phone alerts need **HTTPS on your own domain**. Put the server behind a proxy that handles HTTPS (the included `Caddyfile` does this automatically), or use `docker compose up -d`.
+Real phone alerts need **HTTPS on your own domain**. For a public deployment use Docker Compose: copy `env.example` to
+`.env.production`, fill it in, and run `ops/deploy.sh production`. That runs HTTPS (Caddy), two web servers, an alert
+sender, Redis and nightly backups, and smoke-tests each new version with automatic rollback. `docs/RUNBOOK.md` covers
+deploying, rollback, backups, monitoring and what to do when something goes wrong.
 
 ## Settings (environment variables)
 
@@ -22,7 +25,7 @@ Real phone alerts need **HTTPS on your own domain**. Put the server behind a pro
 | `PORT`, `HOST` | `8080`, `127.0.0.1` | where to listen (`0.0.0.0` in containers) |
 | `REDIS_URL` | (none) | shared storage; required for more than one process or server |
 | `WORKERS` | `1` | processes per machine; `auto` uses every core (needs `REDIS_URL`) |
-| `ROLE` | `all` | `web` (HTTP only), `push` (notification sender and weather poller only) or `all` |
+| `ROLE` | `all` | `web` (HTTP only), `push` (notification sender, data feeds, weather poller and watchdog; no HTTP) or `all` |
 | `DATA_DIR` | `.data` | file storage folder when there is no Redis |
 | `TRUST_PROXY` | off | set `1` behind a proxy or CDN (real client IPs, HSTS) |
 | `VAPID_SUBJECT` | `mailto:alerts@example.org` | contact address push services can use about your alerts |
@@ -39,6 +42,9 @@ Real phone alerts need **HTTPS on your own domain**. Put the server behind a pro
 | `WEATHEREX_ENABLED`, `WEATHEREX_PLACES` | off, `30` | WeatherEx model comparison; turn on only with WeatherEx's permission |
 | `MAP_TILES_URL`, `MAP_GLYPHS_URL` | OpenFreeMap | street map (vector TileJSON) and its fonts for the 3D map; `off` to turn off; your own tile server for full control |
 | `TERRAIN_TILES_URL` | AWS Terrain Tiles (Terrarium) | ground heights for the 3D map and for flood projections; `off` to turn off |
+| `LOG_LEVEL` | `info` | `debug`, `info`, `warn` or `error`; logs are one JSON object per line |
+| `METRICS_TOKEN` | (none) | turns on `GET /metrics` (Prometheus) for requests sending `Authorization: Bearer <token>` |
+| `ALERT_WEBHOOK_URL`, `ALERT_NAME` | (none), `Open Tracker` | where the watchdog posts operator alerts (stopped feeds, waiting approvals, failing phone alerts) |
 
 ## Administration
 
@@ -101,12 +107,13 @@ appear (the app does).
 | Method and path | Who | What |
 |---|---|---|
 | `GET /api/notices`, `/api/weather`, `/api/data`, `/api/config` | anyone (cacheable) | live notices, rain forecasts, published data, push key |
+| `GET /healthz`, `/readyz`, `/readyz/feeds` | anyone | process up; Redis reachable; 503 while a data feed has missed two runs (for uptime monitors) |
+| `GET /metrics` | `METRICS_TOKEN` | Prometheus metrics: requests, timings, phone alerts, feed runs and ages, queue, approvals, subscribers |
 | `POST /api/subscribe`, `/api/unsubscribe`, `/api/resubscribe` | the app | phone alert subscriptions and followed places |
 | `POST /api/contribute` | anyone | flood reports, corrections, suggestions, data sources |
 | `POST /api/notify`, `/api/withdraw`, `GET /api/sent`, `GET /api/whoami` | agency key | send and manage notices |
 | `POST /api/decide`, `/api/settings` (approval, automatic heat alerts), `/api/data`, `/api/contributions/decide`; `GET /api/contributions`, `/api/stats` | administrator key | approvals, settings, data, contributions, numbers |
 | `GET /api/hazards/<CC>`, `/api/hazards/world`, `/api/sources` | anyone (cacheable) | heat, rivers, official warnings, disasters and satellite pictures per country; the world map; every data source with its licence and status |
 | `GET /api/sources/admin`, `/api/cap-feeds`, `/api/snapshot`; `POST /api/sources/run`, `/api/cap-feeds` | administrator key | feed health and errors, run a feed now, add or remove official warning feeds, every country's summary as one file for the claude.ai page |
-| `GET /healthz`, `/readyz` | load balancers | liveness and readiness |
 
 Scaling to very large audiences is covered in `docs/SCALING.md` in the main repository.

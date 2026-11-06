@@ -22,7 +22,7 @@ function mapSettings(cfg) {
   return {map: map.tiles || map.terrain ? map : null, origins};
 }
 
-function createApi({cfg, store, push, weather, feeds, vapidPublicKey}) {
+function createApi({cfg, store, push, weather, feeds, vapidPublicKey, metrics = null, monitor = null, log = console}) {
   const {map, origins} = mapSettings(cfg);
   const csp = buildCsp(origins);
   /* public reads are rebuilt at most once per second per process, however many people ask */
@@ -71,6 +71,23 @@ function createApi({cfg, store, push, weather, feeds, vapidPublicKey}) {
   const routes = {
     "GET /healthz": (req, res) => send(req, res, 200, {ok: true}),
     "GET /readyz": async (req, res) => send(req, res, (await store.ping().catch(() => false)) ? 200 : 503, {}),
+    /* for outside uptime monitors: 503 while any data feed has missed two runs */
+    "GET /readyz/feeds": async (req, res) => {
+      const stale = monitor ? await cached("stale-feeds", () => monitor.stale(), 30e3) : [];
+      send(req, res, stale.length ? 503 : 200, stale.length ? {ok: false, stale: stale.map(f => f.id)} : {ok: true});
+    },
+    /* Prometheus metrics; only with METRICS_TOKEN (Authorization: Bearer <token>) */
+    "GET /metrics": async (req, res) => {
+      if (!cfg.metricsToken || !monitor) return send(req, res, 404, {error: "not found"});
+      const given = Buffer.from(String(bearer(req) || "")), want = Buffer.from(cfg.metricsToken);
+      if (given.length !== want.length || !crypto.timingSafeEqual(given, want)) {
+        const n = await store.hit("badmetrics:" + clientIp(req, cfg.trustProxy), 10 * 60e3);
+        return send(req, res, n > 10 ? 429 : 401, {error: "A valid metrics token is required."});
+      }
+      const text = await monitor.metricsText();
+      res.writeHead(200, {"Content-Type": "text/plain; version=0.0.4; charset=utf-8", "Cache-Control": "no-store", "Content-Length": Buffer.byteLength(text)});
+      res.end(text);
+    },
     "GET /api/config": (req, res) => send(req, res, 200, {vapidPublicKey, map}, CACHE_DATA),
     /* every country's flood and heat summary in one file, for the claude.ai page (Admin → Live data) */
     "GET /api/snapshot": async (req, res) => {
@@ -277,11 +294,19 @@ function createApi({cfg, store, push, weather, feeds, vapidPublicKey}) {
 
   return async function handle(req, res) {
     secure(res, cfg.trustProxy, csp);
-    let url;
+    const started = process.hrtime.bigint();
+    let url, label = "other";
+    if (metrics) {
+      res.on("finish", () => {
+        metrics.inc("opentracker_http_requests_total", {route: label, status: `${String(res.statusCode)[0]}xx`});
+        metrics.observe("opentracker_http_request_duration_seconds", {route: label}, Number(process.hrtime.bigint() - started) / 1e9);
+      });
+    }
     try { url = new URL(req.url, "http://localhost"); } catch (e) { return send(req, res, 400, {error: "bad request"}); }
     const method = req.method === "HEAD" ? "GET" : req.method;
     const prefixed = method === "GET" ? PREFIX_ROUTES.find(([p]) => url.pathname.startsWith(p)) : null;
     const route = prefixed ? prefixed[1] : routes[method + " " + url.pathname];
+    label = prefixed ? `GET ${prefixed[0]}*` : route ? method + " " + url.pathname : url.pathname.startsWith("/api/") ? "other" : "static";   /* fixed names only */
     try {
       if (route) {
         if (method === "POST" && req.headers.origin && !sameOrigin(req.headers.origin, req.headers.host)) return send(req, res, 403, {error: "cross-site request refused"});
@@ -292,7 +317,7 @@ function createApi({cfg, store, push, weather, feeds, vapidPublicKey}) {
       return serveStatic(req, res, cfg.publicDir, url);
     } catch (e) {
       if (e instanceof InputError) return send(req, res, 400, {error: e.message});
-      console.error(e);
+      log.error("request failed", e, {route: label});
       if (!res.headersSent) send(req, res, 500, {error: "Something went wrong."});
     }
   };

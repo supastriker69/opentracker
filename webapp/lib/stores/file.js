@@ -14,6 +14,7 @@ class FileStore {
     this.timers = new Map();
     this.queue = []; this.waiters = [];
     this.rates = new Map();
+    this.metrics = new Map();   /* one process: monitoring totals live in memory and start again at zero on restart */
   }
   async init() {
     fs.mkdirSync(this.dir, {recursive: true, mode: 0o700});
@@ -136,6 +137,9 @@ class FileStore {
       this.waiters.push(w);
     });
   }
+  async queueLength() { return this.queue.length; }
+  async addMetrics(deltas) { for (const [k, v] of Object.entries(deltas)) this.metrics.set(k, (this.metrics.get(k) || 0) + v); }
+  async getMetrics() { return Object.fromEntries(this.metrics); }
   async lock() { return true; }   /* one process: it always holds the lock */
 }
 module.exports = {FileStore};

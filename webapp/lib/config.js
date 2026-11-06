@@ -29,6 +29,20 @@ function mapUrl(v, fallback, name) {
   try { new URL(s.replace(/[{}]/g, "")); } catch (e) { throw new Error(`${name} is not a web address`); }
   return s;
 }
+/* a full https address (with path and query), or "" */
+function httpsUrl(v, name) {
+  if (!v) return "";
+  let u;
+  try { u = new URL(v); } catch (e) { throw new Error(`${name} is not a web address`); }
+  if (u.protocol !== "https:") throw new Error(`${name} must start with https://`);
+  return u.href;
+}
+/* a shared secret long enough not to be guessed, or "" */
+function secretToken(v) {
+  if (!v) return "";
+  if (!/^[A-Za-z0-9._~-]{24,200}$/.test(v)) throw new Error("METRICS_TOKEN must be 24 to 200 letters, digits or . _ ~ - (e.g. openssl rand -hex 24)");
+  return v;
+}
 function feedsOff(v) {
   const list = String(v || "").split(",").map(s => s.trim()).filter(Boolean);
   const bad = list.filter(s => s !== "all" && !FEED_IDS.includes(s));
@@ -50,6 +64,12 @@ function loadConfig(env = process.env) {
     role: env.ROLE || "all",                 /* "web" (HTTP only), "push" (notifications and data feeds only) or "all" */
     vapidSubject: env.VAPID_SUBJECT || "mailto:alerts@example.org",
     trustProxy: env.TRUST_PROXY === "1",
+
+    /* monitoring (docs/RUNBOOK.md → Monitoring) */
+    logLevel: env.LOG_LEVEL || "info",
+    metricsToken: secretToken(env.METRICS_TOKEN),        /* /metrics answers only with this bearer token; unset: /metrics is off */
+    alertWebhook: httpsUrl(env.ALERT_WEBHOOK_URL, "ALERT_WEBHOOK_URL"),
+    alertName: String(env.ALERT_NAME || "Open Tracker").slice(0, 60),
     weatherKey: env.GOOGLE_WEATHER_API_KEY || "",
     pushConcurrency: Math.min(500, Math.max(1, +(env.PUSH_CONCURRENCY || 50))),
     pushBatch: 500,

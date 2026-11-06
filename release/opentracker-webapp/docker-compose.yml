@@ -1,39 +1,77 @@
-# A complete small deployment on one machine: HTTPS proxy, two web servers, one notification sender, Redis.
-# For large deployments see docs/SCALING.md (managed Redis, many regions, a CDN in front).
+# Open Tracker on one machine: HTTPS proxy, two web servers, one alert sender (which also runs the data feeds and
+# the watchdog), Redis, and a nightly backup. The same file runs production and staging; ops/deploy.sh picks the
+# settings file and the image version:
+#   ops/deploy.sh production      settings in .env.production (copy env.example)
+#   ops/deploy.sh staging         settings in .env.staging, ideally on a second, smaller machine
+# For very large deployments see docs/SCALING.md (managed Redis, many regions, a CDN in front).
+x-app: &app
+  image: ${IMAGE:-opentracker:local}
+  build: .
+  depends_on:
+    redis: {condition: service_healthy}
+  restart: unless-stopped
+  logging: &logs {driver: json-file, options: {max-size: "20m", max-file: "5"}}
+
+x-env: &env
+  REDIS_URL: redis://redis:6379/0
+  VAPID_SUBJECT: ${VAPID_SUBJECT:?set VAPID_SUBJECT in the settings file}
+  LOG_LEVEL: ${LOG_LEVEL:-info}
+  METRICS_TOKEN: ${METRICS_TOKEN:-}
+  ALERT_WEBHOOK_URL: ${ALERT_WEBHOOK_URL:-}
+  ALERT_NAME: ${ALERT_NAME:-Open Tracker}
+  MAP_TILES_URL: ${MAP_TILES_URL:-}
+  MAP_GLYPHS_URL: ${MAP_GLYPHS_URL:-}
+  TERRAIN_TILES_URL: ${TERRAIN_TILES_URL:-}
+  FEEDS_OFF: ${FEEDS_OFF:-}
+  GOOGLE_WEATHER_API_KEY: ${GOOGLE_WEATHER_API_KEY:-}
+  WEATHEREX_ENABLED: ${WEATHEREX_ENABLED:-}
+
 services:
   redis:
-    image: redis:7-alpine
+    image: redis:7.4.12-alpine
     command: ["redis-server", "--appendonly", "yes", "--maxmemory-policy", "noeviction"]
     volumes: ["redis-data:/data"]
+    healthcheck: {test: ["CMD", "redis-cli", "ping"], interval: 5s, timeout: 3s, retries: 20}
     restart: unless-stopped
+    logging: *logs
   web:
-    build: .
+    <<: *app
     environment:
-      REDIS_URL: redis://redis:6379/0
+      <<: *env
       ROLE: web
       WORKERS: auto
       TRUST_PROXY: "1"
-      VAPID_SUBJECT: ${VAPID_SUBJECT:-mailto:alerts@example.org}
     deploy: {replicas: 2}
-    depends_on: [redis]
-    restart: unless-stopped
   push:
-    build: .
+    <<: *app
     environment:
-      REDIS_URL: redis://redis:6379/0
+      <<: *env
       ROLE: push
       PUSH_CONCURRENCY: "100"
-      GOOGLE_WEATHER_API_KEY: ${GOOGLE_WEATHER_API_KEY:-}
-      VAPID_SUBJECT: ${VAPID_SUBJECT:-mailto:alerts@example.org}
     healthcheck: {disable: true}   # senders don't serve HTTP
-    depends_on: [redis]
+  backup:
+    image: redis:7.4.12-alpine     # has redis-cli and redis-check-rdb
+    depends_on:
+      redis: {condition: service_healthy}
+    entrypoint: ["sh", "-c", "while true; do sh /ops/backup-redis.sh || echo 'backup failed' >&2; sleep 86400; done"]
+    environment:
+      REDIS_URL: redis://redis:6379/0
+      BACKUP_DIR: /backups
+      KEEP_DAYS: ${BACKUP_KEEP_DAYS:-14}
+      BACKUP_UPLOAD: ${BACKUP_UPLOAD:-}
+    volumes: ["./ops:/ops:ro", "${BACKUP_DIR:-./backups}:/backups"]
     restart: unless-stopped
+    logging: *logs
   caddy:
-    image: caddy:2-alpine
-    ports: ["80:80", "443:443"]
+    image: caddy:2.11.9-alpine
+    ports: ["${HTTP_PORT:-80}:80", "${HTTPS_PORT:-443}:443"]
+    environment:
+      SITE_DOMAIN: ${SITE_DOMAIN:?set SITE_DOMAIN in the settings file}
     volumes: ["./Caddyfile:/etc/caddy/Caddyfile:ro", "caddy-data:/data"]
     depends_on: [web]
     restart: unless-stopped
+    logging: *logs
+
 volumes:
   redis-data: {}
   caddy-data: {}

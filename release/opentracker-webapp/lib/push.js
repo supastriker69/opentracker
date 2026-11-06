@@ -5,7 +5,7 @@
    so one notice can reach millions of phones without holding up the web servers. */
 const webpush = require("web-push");
 
-function createPush({store, cfg, log = console}) {
+function createPush({store, cfg, log = console, metrics = null}) {
   let running = false;
 
   async function enqueue(notice) {
@@ -39,6 +39,11 @@ function createPush({store, cfg, log = console}) {
     await Promise.all(Array.from({length: Math.min(cfg.pushConcurrency, q.length)}, worker));
     await store.delSubs(gone);
     await store.addDelivery(n.id, {sent, failed, removed: gone.length});
+    if (metrics) {
+      if (sent) metrics.inc("opentracker_push_sent_total", {result: "ok"}, sent);
+      if (failed) metrics.inc("opentracker_push_sent_total", {result: "failed"}, failed);
+      if (gone.length) metrics.inc("opentracker_push_sent_total", {result: "gone"}, gone.length);
+    }
   }
 
   async function loop() {

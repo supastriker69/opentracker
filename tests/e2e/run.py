@@ -137,6 +137,14 @@ def run_scenario(b, name):
         expect(page.locator("#pp-hits [data-act=pp-add]").first).to_be_visible()
         click("#pp-hits [data-act=pp-add]")
 
+    def find_row(text):
+        """on an admin list: search for a record and wait until it is the only row shown"""
+        expect(page.locator("#ad-form")).to_have_count(0)   # a form just saved has closed
+        fill("#ad-q", text)
+        rows = page.locator("table").first.locator("tbody tr")
+        expect(rows).to_have_count(1)
+        expect(rows.first).to_contain_text(text, ignore_case=True)
+
     def src_count(sid):
         until("id => MAPV.ready && MAPV.map.getSource(id)", sid, f"map source {sid}")
         return page.evaluate("id => MAPV.map.getSource(id).getData().then(d => d.features.length)", sid)
@@ -151,7 +159,7 @@ def run_scenario(b, name):
         print("  -", label, flush=True)
 
     scope = dict(globals(), page=page, check=check, eq=eq, see=see, gone=gone, until=until, db=db, db_until=db_until,
-                 as_role=as_role, click=click, fill=fill, txt=txt, modes=modes, modes_are=modes_are, seed=seed, add_person=add_person,
+                 as_role=as_role, click=click, fill=fill, txt=txt, modes=modes, modes_are=modes_are, seed=seed, add_person=add_person, find_row=find_row,
                  src_count=src_count, map_idle=map_idle, shot=shot, step=step, expect=expect, ROOT=ROOT, SHOTS=SHOTS, json=json, pathlib=pathlib)
     failure = None
     try:

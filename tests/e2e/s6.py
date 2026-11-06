@@ -33,7 +33,7 @@ as_role("viewer"); click("#bell"); see("Alerts", "h1"); gone("Tampered"); gone("
 
 step("an agency editor's data changes wait for review")
 as_role("editor"); click("[data-act=mode][data-k=admin]"); click("[data-act=ad-tab][data-k=hotspots]")
-fill("#ad-q", "tetegu"); click("[data-act=ad-edit]"); fill("#f-n", "Tetegu (MoI fix)"); page.click("#ad-form button[type=submit]")
+find_row("tetegu"); click("[data-act=ad-edit]"); fill("#f-n", "Tetegu (MoI fix)"); page.click("#ad-form button[type=submit]")
 see("Sent to an administrator for approval.", ".toast")
 click("[data-act=ad-tab][data-k=safe]"); click("[data-act=ad-ask][data-k=del]"); click("[data-act=ad-yes]")
 click("[data-act=ad-tab][data-k=notifications]"); click("[data-act=ad-new][data-k=notifications]")

@@ -12,7 +12,7 @@ see("Ama Editor", "table >> nth=-1"); see("Ngozi Agency", "table >> nth=-1")
 
 step("edit a flood area: out-of-range value refused, then saved")
 click("[data-act=ad-tab][data-k=hotspots]")
-fill("#ad-q", "tetegu")
+find_row("tetegu")
 click("[data-act=ad-edit]")
 fill("#f-n", "Tetegu (edited)"); fill("#f-t", "99999")
 page.click("#ad-form button[type=submit]")
@@ -32,7 +32,7 @@ test_events = lambda d: [k for k, v in d.items() if k.startswith("events/") and 
 d = db_until(lambda d: len(test_events(d)) == 1, "the past flood saved")
 
 step("delete it, then undo the delete from the audit log")
-fill("#ad-q", "Test flood")
+find_row("Test flood")
 click("[data-act=ad-ask][data-k=del]"); click("[data-act=ad-yes]")
 db_until(lambda d: not test_events(d), "the past flood deleted")
 click("[data-act=ad-tab][data-k=audit]")
